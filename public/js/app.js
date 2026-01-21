@@ -444,7 +444,7 @@ const Config = {
 
 const Utils = {
     // 数据源配置
-    LOCAL_DATA_URL: '/data/graph_full.json',
+    LOCAL_DATA_URL: 'data/graph_full.json',
     remoteDataUrl: '',
 
     
@@ -1667,6 +1667,7 @@ const App = {
         alert(message);
     }
 };
+
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
