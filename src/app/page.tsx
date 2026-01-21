@@ -7,7 +7,7 @@ export default function Home() {
         src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"
         strategy="beforeInteractive"
       />
-      <Script src="/js/app.js" strategy="afterInteractive" />
+      <Script src="js/app.js" strategy="afterInteractive" />
 
       <header className="toolbar">
         <div className="toolbar-left">
