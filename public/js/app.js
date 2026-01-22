@@ -1036,7 +1036,7 @@ const Utils = {
     
     getCourseList(graphData) {
         const nodes = graphData.graph ? graphData.graph.nodes : graphData.nodes;
-        return nodes.filter(node => node.category === '课程名称')
+        return nodes.filter(node => node.category === '专业')
                     .map(node => ({
                         id: node.id,
                         name: node.name.replace(/ /g, '')  // 移除插入的空格
@@ -1048,9 +1048,9 @@ const Utils = {
         const nodes = graphData.graph ? graphData.graph.nodes : graphData.nodes;
         const links = graphData.graph ? graphData.graph.links : graphData.links;
         
-        // 找到专业节点作为起点
-        const majorNode = nodes.find(node => node.category === '专业');
-        if (!majorNode) {
+        // 找到全部专业节点作为起点
+        const majorNodes = nodes.filter(node => node.category === '专业');
+        if (!majorNodes.length) {
             return graphData;
         }
         
@@ -1058,7 +1058,11 @@ const Utils = {
         const adjacency = this.buildAdjacency(links);
         
         // BFS按层级获取节点
-        const levelNodes = this.getNodesByLevel(majorNode.id, adjacency, maxLevel);
+        const levelNodes = new Set();
+        majorNodes.forEach((majorNode) => {
+            const majorLevelNodes = this.getNodesByLevel(majorNode.id, adjacency, maxLevel);
+            majorLevelNodes.forEach((nodeId) => levelNodes.add(nodeId));
+        });
         
         // 过滤节点
         const filteredNodes = nodes.filter(node => levelNodes.has(node.id));
@@ -1125,16 +1129,14 @@ const Utils = {
         // 构建邻接表
         const adjacency = this.buildAdjacency(links);
         
-        // BFS获取相关节点（仅下游：能力类型 -> 能力 -> 能力点）
+        // BFS获取相关节点（专业 -> 下游）
         const relatedNodeIds = this.getDownstreamNodes(courseId, adjacency);
-        // 添加课程本身
+        // 添加专业本身
         relatedNodeIds.add(courseId);
         
-        // 过滤节点 - 排除专业和课程类别节点
-        const filteredNodes = nodes.filter(node => 
-            relatedNodeIds.has(node.id) && 
-            node.category !== '专业' && 
-            node.category !== '课程类别'
+        // 过滤节点 - 保留专业及其下游全部节点
+        const filteredNodes = nodes.filter(node =>
+            relatedNodeIds.has(node.id)
         );
         
         // 获取过滤后节点的ID集合
@@ -1913,23 +1915,23 @@ const App = {
             select.remove(1);
         }
         
-        // 获取课程列表
-        const courses = Utils.getCourseList(data);
+        // 获取专业列表
+        const majors = Utils.getCourseList(data);
         
-        // 添加课程选项
-        courses.forEach(course => {
+        // 添加专业选项
+        majors.forEach(course => {
             const option = document.createElement('option');
             option.value = course.id;
             option.textContent = course.name;
             select.appendChild(option);
         });
         
-        console.log(`已加载 ${courses.length} 门课程`);
+        console.log(`已加载 ${majors.length} 个专业`);
     },
 
     
     bindEvents() {
-        // 课程选择器
+        // 专业选择器
         const courseSelect = document.getElementById('courseSelect');
         if (courseSelect) {
             courseSelect.addEventListener('change', (e) => {
@@ -2159,25 +2161,25 @@ const App = {
         const levelSelect = document.getElementById('levelSelect');
         
         if (courseId === 'all') {
-            // 全部课程时，启用层级选择，按层级过滤
+            // 全部专业时，启用层级选择，按层级过滤
             if (levelSelect) {
                 levelSelect.disabled = false;
             }
             this.applyLevelFilter();
         } else {
-            // 选择具体课程时，禁用层级选择，按课程过滤
+            // 选择具体专业时，禁用层级选择，按专业过滤
             if (levelSelect) {
                 levelSelect.disabled = true;
             }
             Graph.filterByCourse(courseId);
         }
-        console.log('切换到课程:', courseId);
+        console.log('切换到专业:', courseId);
     },
 
     
     onLevelChange(level) {
         this.state.currentLevel = level;
-        // 只有在"全部课程"模式下才应用层级过滤
+        // 只有在"全部专业"模式下才应用层级过滤
         if (this.state.currentCourse === 'all') {
             this.applyLevelFilter();
         }

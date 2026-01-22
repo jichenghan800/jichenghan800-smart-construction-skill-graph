@@ -17,7 +17,7 @@ export default function Home() {
           <div className="course-selector">
             <label htmlFor="courseSelect">选择专业：</label>
             <select id="courseSelect" defaultValue="all">
-              <option value="all">全部课程</option>
+              <option value="all">全部专业</option>
             </select>
           </div>
           <div className="level-selector">
