@@ -901,6 +901,18 @@ input[type="radio"] {
     height: 300px;
 }
 
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .btn-primary {
     background: linear-gradient(135deg, var(--primary-color) 0%, #2980b9 100%);
 }

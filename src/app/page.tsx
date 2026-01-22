@@ -11,11 +11,11 @@ export default function Home() {
 
       <header className="toolbar">
         <div className="toolbar-left">
-          <h1 className="logo">智能建造技术专业能力图谱</h1>
+          <h1 className="logo">专业能力图谱系统</h1>
         </div>
         <div className="toolbar-center">
           <div className="course-selector">
-            <label htmlFor="courseSelect">选择课程：</label>
+            <label htmlFor="courseSelect">选择专业：</label>
             <select id="courseSelect" defaultValue="all">
               <option value="all">全部课程</option>
             </select>
@@ -46,6 +46,15 @@ export default function Home() {
           </button>
         </div>
         <div className="toolbar-right">
+          <button id="btnImportExcel" className="btn btn-primary" type="button">
+            <span className="icon">📥</span> 导入Excel
+          </button>
+          <button id="btnExportExcel" className="btn btn-success" type="button">
+            <span className="icon">📤</span> 导出Excel
+          </button>
+          <button id="btnTemplateExcel" className="btn btn-secondary" type="button">
+            <span className="icon">🧾</span> 下载模板
+          </button>
           <button id="btnExport" className="btn btn-success" type="button">
             <span className="icon">📷</span> 导出图片
           </button>
@@ -54,6 +63,12 @@ export default function Home() {
           </button>
         </div>
       </header>
+      <input
+        id="excelFileInput"
+        className="visually-hidden"
+        type="file"
+        accept=".xlsx,.xls"
+      />
 
       <main className="main-container">
         <div className="graph-container">
@@ -120,8 +135,8 @@ export default function Home() {
             </div>
           </div>
           <div className="stats-panel">
-            <span id="statsNodes">节点: 0</span>
-            <span id="statsLinks">关系: 0</span>
+            <span id="statsNodes">节点数: 0</span>
+            <span id="statsLinks">关系数: 0</span>
           </div>
         </div>
 
@@ -349,7 +364,7 @@ export default function Home() {
       <div id="nodeDetailModal" className="modal" style={{ display: "none" }}>
         <div className="modal-content">
           <div className="modal-header">
-            <h3 id="modalTitle">节点详情</h3>
+            <h3 id="modalTitle">节点信息</h3>
             <button className="btn-close" type="button">
               ×
             </button>

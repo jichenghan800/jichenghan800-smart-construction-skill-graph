@@ -470,6 +470,375 @@ const Utils = {
         this.remoteDataUrl = url;
     },
 
+    SHEETJS_URL: '/vendor/xlsx.full.min.js',
+    sheetJSImportPromise: null,
+
+    loadSheetJS() {
+        if (window.XLSX) {
+            return Promise.resolve(window.XLSX);
+        }
+        if (this.sheetJSImportPromise) {
+            return this.sheetJSImportPromise;
+        }
+
+        this.sheetJSImportPromise = new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = this.SHEETJS_URL;
+            script.async = true;
+            script.onload = () => {
+                if (window.XLSX) {
+                    resolve(window.XLSX);
+                } else {
+                    this.sheetJSImportPromise = null;
+                    reject(new Error('SheetJS 加载失败'));
+                }
+            };
+            script.onerror = () => {
+                this.sheetJSImportPromise = null;
+                reject(new Error('SheetJS 加载失败'));
+            };
+            document.head.appendChild(script);
+        });
+
+        return this.sheetJSImportPromise;
+    },
+
+    getSheetByName(workbook, candidates) {
+        const nameMap = new Map();
+        workbook.SheetNames.forEach(name => {
+            nameMap.set(name.toLowerCase(), name);
+        });
+
+        for (const candidate of candidates) {
+            const key = candidate.toLowerCase();
+            if (nameMap.has(key)) {
+                return workbook.Sheets[nameMap.get(key)];
+            }
+        }
+        return null;
+    },
+
+    extractRowData(row, aliasMap) {
+        const data = {};
+        const extras = {};
+        const keyMap = {};
+        const originalMap = {};
+
+        Object.keys(row).forEach((key) => {
+            const trimmed = String(key).trim();
+            const lower = trimmed.toLowerCase();
+            keyMap[lower] = row[key];
+            originalMap[lower] = trimmed;
+        });
+
+        const matchedKeys = new Set();
+        Object.entries(aliasMap).forEach(([canonical, aliases]) => {
+            for (const alias of aliases) {
+                const aliasKey = alias.toLowerCase();
+                if (Object.prototype.hasOwnProperty.call(keyMap, aliasKey)) {
+                    data[canonical] = keyMap[aliasKey];
+                    matchedKeys.add(aliasKey);
+                    break;
+                }
+            }
+        });
+
+        Object.entries(keyMap).forEach(([lowerKey, value]) => {
+            if (!matchedKeys.has(lowerKey) && value !== '' && value !== null && value !== undefined) {
+                extras[originalMap[lowerKey]] = value;
+            }
+        });
+
+        return { data, extras };
+    },
+
+    parseProperties(value) {
+        if (value === '' || value === null || value === undefined) {
+            return {};
+        }
+        if (typeof value === 'object') {
+            return value;
+        }
+
+        try {
+            return JSON.parse(String(value));
+        } catch (error) {
+            console.warn('属性字段解析失败，已忽略:', value);
+            return {};
+        }
+    },
+
+    toNumber(value) {
+        if (value === '' || value === null || value === undefined) {
+            return null;
+        }
+        const num = Number(value);
+        return Number.isFinite(num) ? num : null;
+    },
+
+    buildCategoriesFromNodes(nodes) {
+        const counts = {};
+        nodes.forEach(node => {
+            const category = node.category || '未分类';
+            counts[category] = (counts[category] || 0) + 1;
+        });
+
+        return Object.entries(counts).map(([name, count]) => ({
+            name,
+            count,
+            color: Config.getColor(name),
+            size: Config.getSize(name)
+        }));
+    },
+
+    buildMeta(nodes, links, title = '专业能力图谱系统') {
+        return {
+            title,
+            exportTime: new Date().toISOString(),
+            nodeCount: nodes.length,
+            linkCount: links.length
+        };
+    },
+
+    parseNodesFromRows(rows) {
+        const aliasMap = {
+            id: ['id', 'ID', '节点ID', 'nodeId', 'node_id'],
+            name: ['name', '名称', '节点名称', 'nodeName'],
+            category: ['category', '类别', '节点类型', '类型'],
+            size: ['size', '大小', '节点大小'],
+            color: ['color', '颜色', '节点颜色'],
+            properties: ['properties', '属性', 'props']
+        };
+
+        const nodes = [];
+        let skipped = 0;
+
+        rows.forEach((row) => {
+            const { data, extras } = this.extractRowData(row, aliasMap);
+            const id = data.id !== undefined ? String(data.id).trim() : '';
+            if (!id) {
+                skipped += 1;
+                return;
+            }
+
+            const category = data.category ? String(data.category).trim() : '未分类';
+            const hasCustomSize = data.size !== undefined && String(data.size).trim() !== '';
+            const hasCustomColor = data.color !== undefined && String(data.color).trim() !== '';
+            const useCustomStyle = hasCustomSize || hasCustomColor;
+            const sizeValue = this.toNumber(data.size);
+            const size = sizeValue !== null ? sizeValue : Config.getSize(category);
+            const color = hasCustomColor ? String(data.color).trim() : Config.getColor(category);
+            const properties = {
+                ...extras,
+                ...this.parseProperties(data.properties)
+            };
+
+            nodes.push({
+                id,
+                name: data.name !== undefined ? String(data.name).trim() : id,
+                category,
+                size,
+                color,
+                useCustomStyle,
+                properties
+            });
+        });
+
+        return { nodes, skipped };
+    },
+
+    parseLinksFromRows(rows, nodeIdSet) {
+        const aliasMap = {
+            source: ['source', '源节点', 'from', '起点'],
+            target: ['target', '目标节点', 'to', '终点'],
+            name: ['name', '关系', '关系名称', 'label'],
+            properties: ['properties', '属性', 'props']
+        };
+
+        const links = [];
+        let skipped = 0;
+        let missingRefs = 0;
+
+        rows.forEach((row) => {
+            const { data, extras } = this.extractRowData(row, aliasMap);
+            const source = data.source !== undefined ? String(data.source).trim() : '';
+            const target = data.target !== undefined ? String(data.target).trim() : '';
+            if (!source || !target) {
+                skipped += 1;
+                return;
+            }
+
+            if (!nodeIdSet.has(source) || !nodeIdSet.has(target)) {
+                missingRefs += 1;
+                console.warn(`关系引用的节点不存在，已跳过: ${source} -> ${target}`);
+                return;
+            }
+
+            const properties = {
+                ...extras,
+                ...this.parseProperties(data.properties)
+            };
+
+            links.push({
+                source,
+                target,
+                name: data.name !== undefined ? String(data.name).trim() : '',
+                properties
+            });
+        });
+
+        return { links, skipped, missingRefs };
+    },
+
+    parseMetaSheet(XLSX, sheet) {
+        if (!sheet) return null;
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
+        if (!rows.length) return null;
+
+        const aliasMap = {
+            title: ['title', '标题', '名称'],
+            exportTime: ['exportTime', '导出时间', '时间'],
+            nodeCount: ['nodeCount', '节点数'],
+            linkCount: ['linkCount', '关系数']
+        };
+
+        const { data } = this.extractRowData(rows[0], aliasMap);
+        const nodeCount = this.toNumber(data.nodeCount);
+        const linkCount = this.toNumber(data.linkCount);
+
+        return {
+            title: data.title ? String(data.title).trim() : '专业能力图谱系统',
+            exportTime: data.exportTime ? String(data.exportTime).trim() : new Date().toISOString(),
+            nodeCount: nodeCount !== null ? nodeCount : 0,
+            linkCount: linkCount !== null ? linkCount : 0
+        };
+    },
+
+    parseCategoriesSheet(XLSX, sheet) {
+        if (!sheet) return [];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
+        const aliasMap = {
+            name: ['name', '名称', '类别'],
+            count: ['count', '数量'],
+            color: ['color', '颜色'],
+            size: ['size', '大小']
+        };
+
+        return rows.map((row) => {
+            const { data } = this.extractRowData(row, aliasMap);
+            return {
+                name: data.name ? String(data.name).trim() : '未分类',
+                count: this.toNumber(data.count) || 0,
+                color: data.color ? String(data.color).trim() : Config.getColor(data.name || '未分类'),
+                size: this.toNumber(data.size) || Config.getSize(data.name || '未分类')
+            };
+        });
+    },
+
+    async parseExcelFile(file) {
+        const XLSX = await this.loadSheetJS();
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+
+        const nodesSheet = this.getSheetByName(workbook, ['nodes', 'node', '节点', '节点表']);
+        const linksSheet = this.getSheetByName(workbook, ['links', 'link', '关系', '关系表', 'edges']);
+        if (!nodesSheet || !linksSheet) {
+            throw new Error('缺少 nodes 或 links 工作表');
+        }
+
+        const nodeRows = XLSX.utils.sheet_to_json(nodesSheet, { defval: '', raw: true });
+        const linkRows = XLSX.utils.sheet_to_json(linksSheet, { defval: '', raw: true });
+
+        const { nodes, skipped: skippedNodes } = this.parseNodesFromRows(nodeRows);
+        const nodeIdSet = new Set(nodes.map(node => node.id));
+        const { links, skipped: skippedLinks, missingRefs } = this.parseLinksFromRows(linkRows, nodeIdSet);
+
+        const categoriesSheet = this.getSheetByName(workbook, ['categories', 'category', '类别', '分类']);
+        let categories = categoriesSheet ? this.parseCategoriesSheet(XLSX, categoriesSheet) : [];
+        if (!categories.length) {
+            categories = this.buildCategoriesFromNodes(nodes);
+        }
+
+        const metaSheet = this.getSheetByName(workbook, ['meta', 'info', '信息', 'meta表']);
+        const meta = this.parseMetaSheet(XLSX, metaSheet) || this.buildMeta(nodes, links);
+
+        const graphData = {
+            meta,
+            categories,
+            graph: {
+                nodes,
+                links
+            }
+        };
+
+        return {
+            graphData,
+            skippedNodes,
+            skippedLinks,
+            missingRefs
+        };
+    },
+
+    async exportExcel(graphData, filename = '专业能力图谱系统') {
+        const XLSX = await this.loadSheetJS();
+        const graph = graphData.graph || graphData;
+        const nodes = (graph.nodes || []).map((node) => {
+            const useCustomStyle = node.useCustomStyle === true;
+            const size = useCustomStyle && this.toNumber(node.size) !== null
+                ? this.toNumber(node.size)
+                : Config.getSize(node.category);
+            const color = useCustomStyle && node.color
+                ? String(node.color).trim()
+                : Config.getColor(node.category);
+
+            return {
+                id: node.id,
+                name: node.name,
+                category: node.category,
+                size,
+                color,
+                properties: node.properties && Object.keys(node.properties).length ? JSON.stringify(node.properties) : ''
+            };
+        });
+
+        const links = (graph.links || []).map((link) => ({
+            source: link.source,
+            target: link.target,
+            name: link.name || '',
+            properties: link.properties && Object.keys(link.properties).length ? JSON.stringify(link.properties) : ''
+        }));
+
+        const categories = graphData.categories && graphData.categories.length
+            ? graphData.categories
+            : this.buildCategoriesFromNodes(nodes);
+        const meta = graphData.meta || this.buildMeta(nodes, links);
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(nodes), 'nodes');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(links), 'links');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([meta]), 'meta');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(categories), 'categories');
+
+        XLSX.writeFile(workbook, `${filename}_${this.formatDate(new Date())}.xlsx`);
+    },
+
+    async exportTemplateExcel(filename = '图谱模板') {
+        const XLSX = await this.loadSheetJS();
+        const workbook = XLSX.utils.book_new();
+
+        const nodesHeaders = [['id', 'name', 'category', 'size', 'color', 'properties']];
+        const linksHeaders = [['source', 'target', 'name', 'properties']];
+        const metaHeaders = [['title', 'exportTime', 'nodeCount', 'linkCount']];
+        const categoriesHeaders = [['name', 'count', 'color', 'size']];
+
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(nodesHeaders), 'nodes');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(linksHeaders), 'links');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(metaHeaders), 'meta');
+        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(categoriesHeaders), 'categories');
+
+        XLSX.writeFile(workbook, `${filename}.xlsx`);
+    },
+
     
     getCourseList(graphData) {
         const nodes = graphData.graph ? graphData.graph.nodes : graphData.nodes;
@@ -779,10 +1148,10 @@ const Utils = {
         const statsLinks = document.getElementById('statsLinks');
         
         if (statsNodes) {
-            statsNodes.textContent = `节点: ${nodeCount}`;
+            statsNodes.textContent = `节点数: ${nodeCount}`;
         }
         if (statsLinks) {
-            statsLinks.textContent = `关系: ${linkCount}`;
+            statsLinks.textContent = `关系数: ${linkCount}`;
         }
     },
 
@@ -795,7 +1164,7 @@ const Utils = {
         if (!modal || !modalBody) return;
 
         // 设置标题
-        modalTitle.textContent = nodeData.name || '节点详情';
+        modalTitle.textContent = nodeData.name || '节点信息';
         
         // 构建内容
         let html = '';
@@ -1048,8 +1417,13 @@ const Graph = {
     processNodes(nodes) {
         return nodes.map(node => {
             const category = node.category;
-            const color = Config.getColor(category);
-            const size = Config.getSize(category);
+            const useCustomStyle = node.useCustomStyle === true;
+            const size = useCustomStyle && Utils.toNumber(node.size) !== null
+                ? Utils.toNumber(node.size)
+                : Config.getSize(category);
+            const color = useCustomStyle && node.color
+                ? String(node.color).trim()
+                : Config.getColor(category);
 
             return {
                 id: node.id,
@@ -1392,6 +1766,33 @@ const App = {
             });
         }
 
+        const btnImportExcel = document.getElementById('btnImportExcel');
+        const btnExportExcel = document.getElementById('btnExportExcel');
+        const btnTemplateExcel = document.getElementById('btnTemplateExcel');
+        const excelFileInput = document.getElementById('excelFileInput');
+        if (btnImportExcel && excelFileInput) {
+            btnImportExcel.addEventListener('click', () => {
+                excelFileInput.click();
+            });
+            excelFileInput.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (file) {
+                    this.importExcel(file);
+                }
+                e.target.value = '';
+            });
+        }
+        if (btnExportExcel) {
+            btnExportExcel.addEventListener('click', () => {
+                this.exportExcel();
+            });
+        }
+        if (btnTemplateExcel) {
+            btnTemplateExcel.addEventListener('click', () => {
+                this.exportTemplateExcel();
+            });
+        }
+
         // 设置面板切换
         const btnTogglePanel = document.getElementById('btnTogglePanel');
         if (btnTogglePanel) {
@@ -1654,10 +2055,68 @@ const App = {
     exportGraph() {
         const chartInstance = Graph.getChartInstance();
         if (chartInstance) {
-            const courseName = this.state.currentCourse === 'all' ? '全部课程' : '课程图谱';
-            Utils.exportImage(chartInstance, `智能建造技术专业_${courseName}`);
+            const courseName = this.state.currentCourse === 'all' ? '全部专业' : '专业图谱';
+            Utils.exportImage(chartInstance, `专业能力图谱系统_${courseName}`);
         } else {
             alert('图表尚未加载完成');
+        }
+    },
+
+    async importExcel(file) {
+        if (!file) return;
+        if (!/\\.xlsx?$/.test(file.name.toLowerCase())) {
+            alert('请上传 .xlsx 或 .xls 文件');
+            return;
+        }
+
+        Utils.toggleLoading(true);
+        try {
+            const { graphData, skippedNodes, skippedLinks, missingRefs } = await Utils.parseExcelFile(file);
+            Graph.setData(graphData);
+
+            this.populateCourseSelector(graphData);
+            this.state.currentCourse = 'all';
+
+            const levelSelect = document.getElementById('levelSelect');
+            if (levelSelect) {
+                levelSelect.disabled = false;
+                this.state.currentLevel = Config.current.display.defaultLevel || 3;
+                levelSelect.value = this.state.currentLevel;
+            }
+
+            const filteredData = Utils.filterByLevel(graphData, this.state.currentLevel);
+            Graph.render(filteredData);
+            Utils.toggleLoading(false);
+
+            if (skippedNodes > 0 || skippedLinks > 0 || missingRefs > 0) {
+                const message = `导入完成，跳过节点 ${skippedNodes} 条，跳过关系 ${skippedLinks + missingRefs} 条。`;
+                console.warn(message);
+                alert(message);
+            }
+        } catch (error) {
+            Utils.toggleLoading(false);
+            this.showError(`导入失败: ${error.message || error}`);
+        }
+    },
+
+    async exportExcel() {
+        const data = Graph.currentData || Graph.rawData;
+        if (!data) {
+            alert('图表尚未加载完成');
+            return;
+        }
+        try {
+            await Utils.exportExcel(data, '专业能力图谱系统');
+        } catch (error) {
+            this.showError(`导出失败: ${error.message || error}`);
+        }
+    },
+
+    async exportTemplateExcel() {
+        try {
+            await Utils.exportTemplateExcel('专业能力图谱系统_模板');
+        } catch (error) {
+            this.showError(`模板下载失败: ${error.message || error}`);
         }
     },
 

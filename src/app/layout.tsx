@@ -2,8 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "智能建造技术专业能力图谱",
-  description: "智能建造技术专业能力图谱可视化展示",
+  title: "专业能力图谱系统",
+  description: "专业能力图谱系统可视化展示",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -1,4 +1,4 @@
-# 智能建造技术专业能力图谱（复刻版）
+# 专业能力图谱系统（复刻版）
 
 一个基于 Next.js + ECharts 的知识图谱可视化项目，复刻自在线示例站点。提供课程筛选、层级展开、主题切换、图谱布局切换、图谱导出与参数配置等功能。
 
@@ -11,6 +11,9 @@
 - 图谱设置：节点颜色、大小、线条参数、布局参数
 - 统计信息：节点/关系数量实时更新
 - 导出图片：一键导出 PNG
+- Excel 导入/导出：nodes/links 多工作表结构
+- 模板下载：提供 Excel 空模板（含工作表与表头）
+- Excel 功能使用本地 `public/vendor/xlsx.full.min.js`，避免依赖外网
 
 ## 技术栈
 
@@ -55,6 +58,14 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 - `themes`：主题色与背景
 
 配置会存储在浏览器 `localStorage` 的 `graph_config_v3`。
+
+## Excel 导入/导出
+
+- 单个 Excel 文件包含多个工作表：`nodes`、`links`（可选 `meta`、`categories`）
+- `nodes` 字段建议：`id`、`name`、`category`、`size`、`color`、`properties`
+- `links` 字段建议：`source`、`target`、`name`、`properties`
+- 缺失的 `size` / `color` / `properties` 会按 `Config` 默认配置自动补全
+- 如果 `links` 里的 `source/target` 在 `nodes` 中不存在，会给出警告并跳过该关系
 
 ## 性能说明
 
