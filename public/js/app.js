@@ -8,7 +8,6 @@ const Config = {
             name: '经典主题',
             colors: {
                 '专业': '#E74C3C',
-                '岗位': '#8E44AD',
                 '课程类别': '#3498DB',
                 '课程名称': '#2ECC71',
                 '能力类型': '#F39C12',
@@ -21,7 +20,6 @@ const Config = {
             name: '海洋主题',
             colors: {
                 '专业': '#0D47A1',
-                '岗位': '#1B3A8A',
                 '课程类别': '#1565C0',
                 '课程名称': '#1976D2',
                 '能力类型': '#1E88E5',
@@ -34,7 +32,6 @@ const Config = {
             name: '森林主题',
             colors: {
                 '专业': '#1B5E20',
-                '岗位': '#2F6B3A',
                 '课程类别': '#2E7D32',
                 '课程名称': '#388E3C',
                 '能力类型': '#43A047',
@@ -47,7 +44,6 @@ const Config = {
             name: '日落主题',
             colors: {
                 '专业': '#C62828',
-                '岗位': '#D35400',
                 '课程类别': '#E65100',
                 '课程名称': '#F57C00',
                 '能力类型': '#FFA000',
@@ -60,7 +56,6 @@ const Config = {
             name: '科技主题',
             colors: {
                 '专业': '#6200EA',
-                '岗位': '#1565C0',
                 '课程类别': '#304FFE',
                 '课程名称': '#00BFA5',
                 '能力类型': '#00E676',
@@ -76,7 +71,6 @@ const Config = {
         // 节点颜色
         colors: {
             '专业': '#E74C3C',
-            '岗位': '#8E44AD',
             '课程类别': '#3498DB',
             '课程名称': '#2ECC71',
             '能力类型': '#F39C12',
@@ -87,7 +81,6 @@ const Config = {
         // 节点大小
         sizes: {
             '专业': 100,
-            '岗位': 90,
             '课程类别': 85,
             '课程名称': 75,
             '能力类型': 70,
@@ -282,7 +275,6 @@ const Config = {
     applyToDOM() {
         // 颜色配置
         this.setInputValue('colorMajor', this.current.colors['专业']);
-        this.setInputValue('colorRole', this.current.colors['岗位']);
         this.setInputValue('colorCategory', this.current.colors['课程类别']);
         this.setInputValue('colorCourse', this.current.colors['课程名称']);
         this.setInputValue('colorType', this.current.colors['能力类型']);
@@ -291,7 +283,6 @@ const Config = {
         
         // 大小配置
         this.setInputValue('sizeMajor', this.current.sizes['专业']);
-        this.setInputValue('sizeRole', this.current.sizes['岗位']);
         this.setInputValue('sizeCategory', this.current.sizes['课程类别']);
         this.setInputValue('sizeCourse', this.current.sizes['课程名称']);
         this.setInputValue('sizeType', this.current.sizes['能力类型']);
@@ -300,7 +291,6 @@ const Config = {
         
         // 更新显示值
         this.updateSliderDisplay('sizeMajor', this.current.sizes['专业']);
-        this.updateSliderDisplay('sizeRole', this.current.sizes['岗位']);
         this.updateSliderDisplay('sizeCategory', this.current.sizes['课程类别']);
         this.updateSliderDisplay('sizeCourse', this.current.sizes['课程名称']);
         this.updateSliderDisplay('sizeType', this.current.sizes['能力类型']);
@@ -340,7 +330,6 @@ const Config = {
     readFromDOM() {
         // 颜色配置
         this.current.colors['专业'] = this.getInputValue('colorMajor') || this.defaults.colors['专业'];
-        this.current.colors['岗位'] = this.getInputValue('colorRole') || this.defaults.colors['岗位'];
         this.current.colors['课程类别'] = this.getInputValue('colorCategory') || this.defaults.colors['课程类别'];
         this.current.colors['课程名称'] = this.getInputValue('colorCourse') || this.defaults.colors['课程名称'];
         this.current.colors['能力类型'] = this.getInputValue('colorType') || this.defaults.colors['能力类型'];
@@ -349,7 +338,6 @@ const Config = {
         
         // 大小配置
         this.current.sizes['专业'] = parseInt(this.getInputValue('sizeMajor')) || this.defaults.sizes['专业'];
-        this.current.sizes['岗位'] = parseInt(this.getInputValue('sizeRole')) || this.defaults.sizes['岗位'];
         this.current.sizes['课程类别'] = parseInt(this.getInputValue('sizeCategory')) || this.defaults.sizes['课程类别'];
         this.current.sizes['课程名称'] = parseInt(this.getInputValue('sizeCourse')) || this.defaults.sizes['课程名称'];
         this.current.sizes['能力类型'] = parseInt(this.getInputValue('sizeType')) || this.defaults.sizes['能力类型'];
@@ -384,7 +372,6 @@ const Config = {
     updateCSSVariables() {
         const root = document.documentElement;
         root.style.setProperty('--color-major', this.current.colors['专业']);
-        root.style.setProperty('--color-role', this.current.colors['岗位']);
         root.style.setProperty('--color-category', this.current.colors['课程类别']);
         root.style.setProperty('--color-course', this.current.colors['课程名称']);
         root.style.setProperty('--color-type', this.current.colors['能力类型']);
@@ -507,9 +494,7 @@ const Utils = {
     opsPasswordCache: null,
     CHAIN_SPEC: [
         { kind: 'node', key: '专业', category: '专业' },
-        { kind: 'rel', key: '关系(专业-岗位)' },
-        { kind: 'node', key: '岗位', category: '岗位' },
-        { kind: 'rel', key: '关系(岗位-课程类别)' },
+        { kind: 'rel', key: '关系(专业-课程类别)' },
         { kind: 'node', key: '课程类别', category: '课程类别' },
         { kind: 'rel', key: '关系(课程类别-课程名称)' },
         { kind: 'node', key: '课程名称', category: '课程名称' },
@@ -1686,7 +1671,7 @@ const Graph = {
 
     
     getCategories() {
-        const categoryNames = ['专业', '岗位', '课程类别', '课程名称', '能力类型', '能力', '能力点'];
+        const categoryNames = ['专业', '课程类别', '课程名称', '能力类型', '能力', '能力点'];
         return categoryNames.map(name => ({
             name: name,
             itemStyle: {
@@ -2106,7 +2091,7 @@ const App = {
     
     bindSliderEvents() {
         const sliders = [
-            'sizeMajor', 'sizeRole', 'sizeCategory', 'sizeCourse', 'sizeType', 'sizeAbility', 'sizePoint',
+            'sizeMajor', 'sizeCategory', 'sizeCourse', 'sizeType', 'sizeAbility', 'sizePoint',
             'lineWidth', 'lineOpacity', 'repulsion', 'edgeLength', 'gravity'
         ];
 
@@ -2137,7 +2122,7 @@ const App = {
     
     bindColorEvents() {
         const colorInputs = [
-            'colorMajor', 'colorRole', 'colorCategory', 'colorCourse',
+            'colorMajor', 'colorCategory', 'colorCourse',
             'colorType', 'colorAbility', 'colorPoint'
         ];
 
@@ -2162,7 +2147,6 @@ const App = {
     getColorCategory(colorId) {
         const map = {
             'colorMajor': 'major',
-            'colorRole': 'role',
             'colorCategory': 'category',
             'colorCourse': 'course',
             'colorType': 'type',
