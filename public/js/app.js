@@ -470,7 +470,7 @@ const Utils = {
         this.remoteDataUrl = url;
     },
 
-    SHEETJS_URL: '/vendor/xlsx.full.min.js',
+    SHEETJS_URL: 'vendor/xlsx.full.min.js',
     sheetJSImportPromise: null,
 
     loadSheetJS() {
@@ -831,10 +831,31 @@ const Utils = {
         const metaHeaders = [['title', 'exportTime', 'nodeCount', 'linkCount']];
         const categoriesHeaders = [['name', 'count', 'color', 'size']];
 
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(nodesHeaders), 'nodes');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(linksHeaders), 'links');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(metaHeaders), 'meta');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(categoriesHeaders), 'categories');
+        const nodesSheet = XLSX.utils.aoa_to_sheet(nodesHeaders);
+        const linksSheet = XLSX.utils.aoa_to_sheet(linksHeaders);
+        const metaSheet = XLSX.utils.aoa_to_sheet(metaHeaders);
+        const categoriesSheet = XLSX.utils.aoa_to_sheet(categoriesHeaders);
+
+        const requiredStyle = {
+            fill: { patternType: 'solid', fgColor: { rgb: 'FFFCE8B2' } },
+            font: { bold: true, color: { rgb: 'FF8A4B08' } }
+        };
+        const markRequired = (sheet, cell) => {
+            if (sheet[cell]) {
+                sheet[cell].s = requiredStyle;
+            }
+        };
+
+        // nodes: id 必填
+        markRequired(nodesSheet, 'A1');
+        // links: source/target 必填
+        markRequired(linksSheet, 'A1');
+        markRequired(linksSheet, 'B1');
+
+        XLSX.utils.book_append_sheet(workbook, nodesSheet, 'nodes');
+        XLSX.utils.book_append_sheet(workbook, linksSheet, 'links');
+        XLSX.utils.book_append_sheet(workbook, metaSheet, 'meta');
+        XLSX.utils.book_append_sheet(workbook, categoriesSheet, 'categories');
 
         XLSX.writeFile(workbook, `${filename}.xlsx`);
     },
