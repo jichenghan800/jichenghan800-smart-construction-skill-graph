@@ -457,7 +457,7 @@ const Config = {
 
 const Utils = {
     // 数据源配置
-    LOCAL_DATA_URL: 'data/graph_full.json',
+    LOCAL_DATA_URL: 'api/graph',
     remoteDataUrl: '',
 
     
@@ -465,7 +465,7 @@ const Utils = {
         const url = useRemote && this.remoteDataUrl ? this.remoteDataUrl : this.LOCAL_DATA_URL;
         
         try {
-            const response = await fetch(url);
+            const response = await fetch(url, { cache: 'no-store' });
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -481,6 +481,23 @@ const Utils = {
     
     setRemoteUrl(url) {
         this.remoteDataUrl = url;
+    },
+
+    async saveGraphToServer(graphData) {
+        if (!graphData) {
+            throw new Error('无可保存的数据');
+        }
+        const response = await fetch('api/graph', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(graphData)
+        });
+        if (!response.ok) {
+            throw new Error(`保存失败: ${response.status}`);
+        }
+        return response.json().catch(() => ({}));
     },
 
     SHEETJS_URL: 'vendor/xlsx.full.min.js',
@@ -2360,6 +2377,12 @@ const App = {
             this.applyGraphData(graphData);
             this.state.dataSourceType = 'excel';
             this.state.excelRows = normalizedRows || [];
+            try {
+                await Utils.saveGraphToServer(graphData);
+            } catch (saveError) {
+                console.warn('服务端保存失败:', saveError);
+                alert('导入完成，但服务端保存失败，请检查服务是否可用');
+            }
             Utils.toggleLoading(false);
 
             if (invalidRows > 0) {

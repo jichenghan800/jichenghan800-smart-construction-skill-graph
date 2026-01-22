@@ -19,6 +19,7 @@
 
 # production
 /build
+data/graph_saved.json
 
 # misc
 .DS_Store

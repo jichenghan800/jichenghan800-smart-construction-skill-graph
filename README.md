@@ -70,6 +70,11 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 - 每次导入前会自动备份当前图谱数据，可通过“恢复备份”一键回滚
 - 运维密码配置在 `public/config/ops.json`，修改 `password` 即可生效
 
+## 服务端持久化
+
+- 导入 Excel 后会自动保存到服务端文件 `data/graph_saved.json`
+- 服务端接口：`GET /api/graph` 读取保存数据（不存在则回退到 `public/data/graph_full.json`），`POST /api/graph` 保存数据
+
 ## 性能说明
 
 - 生产模式（`npm run build` + `npm run start`）性能明显优于开发模式
