@@ -11,7 +11,7 @@
 - 图谱设置：节点颜色、大小、线条参数、布局参数
 - 统计信息：节点/关系数量实时更新
 - 导出图片：一键导出 PNG
-- Excel 导入/导出：nodes/links 多工作表结构
+- Excel 导入/导出：单 sheet 链式结构
 - 模板下载：提供 Excel 空模板（含工作表与表头）
 - Excel 功能使用本地 `public/vendor/xlsx.full.min.js`，避免依赖外网
 
@@ -61,13 +61,14 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 
 ## Excel 导入/导出
 
-- 单个 Excel 文件包含多个工作表：`nodes`、`links`（可选 `meta`、`categories`）
-- `nodes` 字段建议：`id`、`name`、`category`、`size`、`color`、`properties`
-- `links` 字段建议：`source`、`target`、`name`、`properties`
-- 缺失的 `size` / `color` / `properties` 会按 `Config` 默认配置自动补全
-- 如果 `links` 里的 `source/target` 在 `nodes` 中不存在，会给出警告并跳过该关系
+- 单个 Excel 文件仅 1 个工作表，表头固定为：
+  `专业 | 关系(专业-岗位) | 岗位 | 关系(岗位-课程类别) | 课程类别 | 关系(课程类别-课程名称) | 课程名称 | 关系(课程名称-能力类型) | 能力类型 | 关系(能力类型-能力) | 能力 | 关系(能力-能力点) | 能力点`
+- 仅节点列为必填，关系列可为空；缺失节点信息的行会被跳过并提示
+- 节点 ID 由系统自动生成（稳定规则：节点类型 + 名称 + 父节点），无需在 Excel 中填写
+- 导出 Excel 仅支持从 Excel 导入的数据；原始为 JSON 时提示直接导出 JSON
 - 模板中必填字段会用颜色标记（若 Excel 不显示颜色，以列名为准）
 - 每次导入前会自动备份当前图谱数据，可通过“恢复备份”一键回滚
+- 运维密码配置在 `public/config/ops.json`，修改 `password` 即可生效
 
 ## 性能说明
 

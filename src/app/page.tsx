@@ -46,18 +46,25 @@ export default function Home() {
           </button>
         </div>
         <div className="toolbar-right">
-          <button id="btnImportExcel" className="btn btn-primary" type="button">
-            <span className="icon">📥</span> 导入Excel
-          </button>
-          <button id="btnExportExcel" className="btn btn-success" type="button">
-            <span className="icon">📤</span> 导出Excel
-          </button>
-          <button id="btnTemplateExcel" className="btn btn-secondary" type="button">
-            <span className="icon">🧾</span> 下载模板
-          </button>
-          <button id="btnRestoreBackup" className="btn btn-secondary" type="button">
-            <span className="icon">🕘</span> 恢复备份
-          </button>
+          <div className="ops-menu">
+            <button id="btnOpsMenu" className="btn btn-secondary" type="button">
+              <span className="icon">🧰</span> 运维
+            </button>
+            <div id="opsPanel" className="ops-panel">
+              <button id="btnTemplateExcel" className="btn btn-secondary" type="button">
+                <span className="icon">🧾</span> 下载模板
+              </button>
+              <button id="btnImportExcel" className="btn btn-primary" type="button">
+                <span className="icon">📥</span> 导入Excel
+              </button>
+              <button id="btnExportExcel" className="btn btn-success" type="button">
+                <span className="icon">📤</span> 导出Excel
+              </button>
+              <button id="btnRestoreBackup" className="btn btn-secondary" type="button">
+                <span className="icon">🕘</span> 恢复备份
+              </button>
+            </div>
+          </div>
           <button id="btnExport" className="btn btn-success" type="button">
             <span className="icon">📷</span> 导出图片
           </button>
@@ -99,6 +106,13 @@ export default function Home() {
                   style={{ background: "var(--color-major)" }}
                 />
                 <span>专业</span>
+              </div>
+              <div className="legend-item">
+                <span
+                  className="legend-color"
+                  style={{ background: "var(--color-role)" }}
+                />
+                <span>岗位</span>
               </div>
               <div className="legend-item">
                 <span
@@ -209,6 +223,10 @@ export default function Home() {
                   <input type="color" id="colorMajor" defaultValue="#E74C3C" />
                 </div>
                 <div className="config-item color-item">
+                  <label>岗位</label>
+                  <input type="color" id="colorRole" defaultValue="#8E44AD" />
+                </div>
+                <div className="config-item color-item">
                   <label>课程类别</label>
                   <input type="color" id="colorCategory" defaultValue="#3498DB" />
                 </div>
@@ -238,6 +256,12 @@ export default function Home() {
                   专业 <span id="sizeMajorVal">100</span>
                 </label>
                 <input type="range" id="sizeMajor" min="40" max="150" defaultValue="100" />
+              </div>
+              <div className="config-item slider-item">
+                <label>
+                  岗位 <span id="sizeRoleVal">90</span>
+                </label>
+                <input type="range" id="sizeRole" min="35" max="130" defaultValue="90" />
               </div>
               <div className="config-item slider-item">
                 <label>

@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "专业能力图谱系统",
   description: "专业能力图谱系统可视化展示",
   icons: {
-    icon: "/favicon.svg",
+    icon: "favicon.svg",
   },
 };
 

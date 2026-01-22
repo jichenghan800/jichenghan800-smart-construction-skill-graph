@@ -8,6 +8,7 @@ const Config = {
             name: '经典主题',
             colors: {
                 '专业': '#E74C3C',
+                '岗位': '#8E44AD',
                 '课程类别': '#3498DB',
                 '课程名称': '#2ECC71',
                 '能力类型': '#F39C12',
@@ -20,6 +21,7 @@ const Config = {
             name: '海洋主题',
             colors: {
                 '专业': '#0D47A1',
+                '岗位': '#1B3A8A',
                 '课程类别': '#1565C0',
                 '课程名称': '#1976D2',
                 '能力类型': '#1E88E5',
@@ -32,6 +34,7 @@ const Config = {
             name: '森林主题',
             colors: {
                 '专业': '#1B5E20',
+                '岗位': '#2F6B3A',
                 '课程类别': '#2E7D32',
                 '课程名称': '#388E3C',
                 '能力类型': '#43A047',
@@ -44,6 +47,7 @@ const Config = {
             name: '日落主题',
             colors: {
                 '专业': '#C62828',
+                '岗位': '#D35400',
                 '课程类别': '#E65100',
                 '课程名称': '#F57C00',
                 '能力类型': '#FFA000',
@@ -56,6 +60,7 @@ const Config = {
             name: '科技主题',
             colors: {
                 '专业': '#6200EA',
+                '岗位': '#1565C0',
                 '课程类别': '#304FFE',
                 '课程名称': '#00BFA5',
                 '能力类型': '#00E676',
@@ -71,6 +76,7 @@ const Config = {
         // 节点颜色
         colors: {
             '专业': '#E74C3C',
+            '岗位': '#8E44AD',
             '课程类别': '#3498DB',
             '课程名称': '#2ECC71',
             '能力类型': '#F39C12',
@@ -81,6 +87,7 @@ const Config = {
         // 节点大小
         sizes: {
             '专业': 100,
+            '岗位': 90,
             '课程类别': 85,
             '课程名称': 75,
             '能力类型': 70,
@@ -275,6 +282,7 @@ const Config = {
     applyToDOM() {
         // 颜色配置
         this.setInputValue('colorMajor', this.current.colors['专业']);
+        this.setInputValue('colorRole', this.current.colors['岗位']);
         this.setInputValue('colorCategory', this.current.colors['课程类别']);
         this.setInputValue('colorCourse', this.current.colors['课程名称']);
         this.setInputValue('colorType', this.current.colors['能力类型']);
@@ -283,6 +291,7 @@ const Config = {
         
         // 大小配置
         this.setInputValue('sizeMajor', this.current.sizes['专业']);
+        this.setInputValue('sizeRole', this.current.sizes['岗位']);
         this.setInputValue('sizeCategory', this.current.sizes['课程类别']);
         this.setInputValue('sizeCourse', this.current.sizes['课程名称']);
         this.setInputValue('sizeType', this.current.sizes['能力类型']);
@@ -291,6 +300,7 @@ const Config = {
         
         // 更新显示值
         this.updateSliderDisplay('sizeMajor', this.current.sizes['专业']);
+        this.updateSliderDisplay('sizeRole', this.current.sizes['岗位']);
         this.updateSliderDisplay('sizeCategory', this.current.sizes['课程类别']);
         this.updateSliderDisplay('sizeCourse', this.current.sizes['课程名称']);
         this.updateSliderDisplay('sizeType', this.current.sizes['能力类型']);
@@ -330,6 +340,7 @@ const Config = {
     readFromDOM() {
         // 颜色配置
         this.current.colors['专业'] = this.getInputValue('colorMajor') || this.defaults.colors['专业'];
+        this.current.colors['岗位'] = this.getInputValue('colorRole') || this.defaults.colors['岗位'];
         this.current.colors['课程类别'] = this.getInputValue('colorCategory') || this.defaults.colors['课程类别'];
         this.current.colors['课程名称'] = this.getInputValue('colorCourse') || this.defaults.colors['课程名称'];
         this.current.colors['能力类型'] = this.getInputValue('colorType') || this.defaults.colors['能力类型'];
@@ -338,6 +349,7 @@ const Config = {
         
         // 大小配置
         this.current.sizes['专业'] = parseInt(this.getInputValue('sizeMajor')) || this.defaults.sizes['专业'];
+        this.current.sizes['岗位'] = parseInt(this.getInputValue('sizeRole')) || this.defaults.sizes['岗位'];
         this.current.sizes['课程类别'] = parseInt(this.getInputValue('sizeCategory')) || this.defaults.sizes['课程类别'];
         this.current.sizes['课程名称'] = parseInt(this.getInputValue('sizeCourse')) || this.defaults.sizes['课程名称'];
         this.current.sizes['能力类型'] = parseInt(this.getInputValue('sizeType')) || this.defaults.sizes['能力类型'];
@@ -372,6 +384,7 @@ const Config = {
     updateCSSVariables() {
         const root = document.documentElement;
         root.style.setProperty('--color-major', this.current.colors['专业']);
+        root.style.setProperty('--color-role', this.current.colors['岗位']);
         root.style.setProperty('--color-category', this.current.colors['课程类别']);
         root.style.setProperty('--color-course', this.current.colors['课程名称']);
         root.style.setProperty('--color-type', this.current.colors['能力类型']);
@@ -470,9 +483,26 @@ const Utils = {
         this.remoteDataUrl = url;
     },
 
-    SHEETJS_URL: '/vendor/xlsx.full.min.js',
+    SHEETJS_URL: 'vendor/xlsx.full.min.js',
     sheetJSImportPromise: null,
     BACKUP_KEY: 'graph_backup_latest',
+    OPS_CONFIG_URL: 'config/ops.json',
+    opsPasswordCache: null,
+    CHAIN_SPEC: [
+        { kind: 'node', key: '专业', category: '专业' },
+        { kind: 'rel', key: '关系(专业-岗位)' },
+        { kind: 'node', key: '岗位', category: '岗位' },
+        { kind: 'rel', key: '关系(岗位-课程类别)' },
+        { kind: 'node', key: '课程类别', category: '课程类别' },
+        { kind: 'rel', key: '关系(课程类别-课程名称)' },
+        { kind: 'node', key: '课程名称', category: '课程名称' },
+        { kind: 'rel', key: '关系(课程名称-能力类型)' },
+        { kind: 'node', key: '能力类型', category: '能力类型' },
+        { kind: 'rel', key: '关系(能力类型-能力)' },
+        { kind: 'node', key: '能力', category: '能力' },
+        { kind: 'rel', key: '关系(能力-能力点)' },
+        { kind: 'node', key: '能力点', category: '能力点' }
+    ],
 
     loadSheetJS() {
         if (window.XLSX) {
@@ -502,6 +532,26 @@ const Utils = {
         });
 
         return this.sheetJSImportPromise;
+    },
+
+    async getOpsPassword() {
+        if (this.opsPasswordCache !== null) {
+            return this.opsPasswordCache;
+        }
+
+        try {
+            const response = await fetch(this.OPS_CONFIG_URL, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const data = await response.json();
+            this.opsPasswordCache = data.password || '';
+        } catch (error) {
+            console.warn('运维密码读取失败:', error);
+            this.opsPasswordCache = '';
+        }
+
+        return this.opsPasswordCache;
     },
 
     saveBackup(data) {
@@ -539,6 +589,137 @@ const Utils = {
             return backup.savedAt;
         }
         return this.formatDate(date);
+    },
+
+    getChainHeaders() {
+        return this.CHAIN_SPEC.map((item) => item.key);
+    },
+
+    hashString(value) {
+        let hash = 2166136261;
+        for (let i = 0; i < value.length; i += 1) {
+            hash ^= value.charCodeAt(i);
+            hash = Math.imul(hash, 16777619);
+        }
+        return (hash >>> 0).toString(16);
+    },
+
+    buildNodeId(category, name, parentId) {
+        const key = `${category}|${name}|${parentId}`;
+        return `n_${this.hashString(key)}`;
+    },
+
+    normalizeCell(value) {
+        if (value === null || value === undefined) {
+            return '';
+        }
+        return String(value).trim();
+    },
+
+    parseChainSheet(XLSX, sheet) {
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (!rows.length) {
+            throw new Error('Excel 表为空');
+        }
+
+        const rawHeaders = rows[0].map((cell) => this.normalizeCell(cell));
+        const headerIndex = new Map();
+        rawHeaders.forEach((header, index) => {
+            if (header) {
+                headerIndex.set(header, index);
+            }
+        });
+
+        const requiredHeaders = this.getChainHeaders();
+        const missingHeaders = requiredHeaders.filter((header) => !headerIndex.has(header));
+        if (missingHeaders.length) {
+            throw new Error(`缺少列: ${missingHeaders.join('、')}`);
+        }
+
+        const nodes = [];
+        const links = [];
+        const nodeKeyMap = new Map();
+        const linkKeySet = new Set();
+        const normalizedRows = [];
+        let invalidRows = 0;
+
+        for (let i = 1; i < rows.length; i += 1) {
+            const row = rows[i];
+            if (!row || row.every((cell) => this.normalizeCell(cell) === '')) {
+                continue;
+            }
+
+            const rowData = {};
+            let hasMissingNode = false;
+            this.CHAIN_SPEC.forEach((spec) => {
+                const index = headerIndex.get(spec.key);
+                const value = index !== undefined ? this.normalizeCell(row[index]) : '';
+                rowData[spec.key] = value;
+                if (spec.kind === 'node' && !value) {
+                    hasMissingNode = true;
+                }
+            });
+
+            if (hasMissingNode) {
+                invalidRows += 1;
+                continue;
+            }
+
+            let parentId = 'ROOT';
+            let prevNodeId = null;
+            let pendingRelation = '';
+
+            this.CHAIN_SPEC.forEach((spec) => {
+                const value = rowData[spec.key] || '';
+                if (spec.kind === 'rel') {
+                    pendingRelation = value;
+                    return;
+                }
+
+                const nodeKey = `${spec.category}||${value}||${parentId}`;
+                let nodeId = nodeKeyMap.get(nodeKey);
+                if (!nodeId) {
+                    nodeId = this.buildNodeId(spec.category, value, parentId);
+                    nodeKeyMap.set(nodeKey, nodeId);
+                    nodes.push({
+                        id: nodeId,
+                        name: value,
+                        category: spec.category,
+                        properties: {}
+                    });
+                }
+
+                if (prevNodeId) {
+                    const linkKey = `${prevNodeId}||${nodeId}||${pendingRelation}`;
+                    if (!linkKeySet.has(linkKey)) {
+                        linkKeySet.add(linkKey);
+                        links.push({
+                            source: prevNodeId,
+                            target: nodeId,
+                            name: pendingRelation,
+                            properties: {}
+                        });
+                    }
+                }
+
+                prevNodeId = nodeId;
+                parentId = nodeId;
+                pendingRelation = '';
+            });
+
+            normalizedRows.push(rowData);
+        }
+
+        if (normalizedRows.length === 0) {
+            throw new Error('未找到有效数据行，请检查必填节点列');
+        }
+
+        return {
+            nodes,
+            links,
+            normalizedRows,
+            invalidRows
+        };
     },
 
     getSheetByName(workbook, candidates) {
@@ -778,27 +959,19 @@ const Utils = {
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'array' });
 
-        const nodesSheet = this.getSheetByName(workbook, ['nodes', 'node', '节点', '节点表']);
-        const linksSheet = this.getSheetByName(workbook, ['links', 'link', '关系', '关系表', 'edges']);
-        if (!nodesSheet || !linksSheet) {
-            throw new Error('缺少 nodes 或 links 工作表');
+        if (!workbook.SheetNames || !workbook.SheetNames.length) {
+            throw new Error('Excel 表为空');
         }
 
-        const nodeRows = XLSX.utils.sheet_to_json(nodesSheet, { defval: '', raw: true });
-        const linkRows = XLSX.utils.sheet_to_json(linksSheet, { defval: '', raw: true });
-
-        const { nodes, skipped: skippedNodes } = this.parseNodesFromRows(nodeRows);
-        const nodeIdSet = new Set(nodes.map(node => node.id));
-        const { links, skipped: skippedLinks, missingRefs } = this.parseLinksFromRows(linkRows, nodeIdSet);
-
-        const categoriesSheet = this.getSheetByName(workbook, ['categories', 'category', '类别', '分类']);
-        let categories = categoriesSheet ? this.parseCategoriesSheet(XLSX, categoriesSheet) : [];
-        if (!categories.length) {
-            categories = this.buildCategoriesFromNodes(nodes);
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) {
+            throw new Error('未找到有效工作表');
         }
 
-        const metaSheet = this.getSheetByName(workbook, ['meta', 'info', '信息', 'meta表']);
-        const meta = this.parseMetaSheet(XLSX, metaSheet) || this.buildMeta(nodes, links);
+        const { nodes, links, normalizedRows, invalidRows } = this.parseChainSheet(XLSX, sheet);
+        const categories = this.buildCategoriesFromNodes(nodes);
+        const meta = this.buildMeta(nodes, links);
 
         const graphData = {
             meta,
@@ -811,89 +984,51 @@ const Utils = {
 
         return {
             graphData,
-            skippedNodes,
-            skippedLinks,
-            missingRefs
+            normalizedRows,
+            invalidRows
         };
     },
 
-    async exportExcel(graphData, filename = '专业能力图谱系统') {
+    async exportExcel(rows, filename = '专业能力图谱系统') {
         const XLSX = await this.loadSheetJS();
-        const graph = graphData.graph || graphData;
-        const nodes = (graph.nodes || []).map((node) => {
-            const useCustomStyle = node.useCustomStyle === true;
-            const size = useCustomStyle && this.toNumber(node.size) !== null
-                ? this.toNumber(node.size)
-                : Config.getSize(node.category);
-            const color = useCustomStyle && node.color
-                ? String(node.color).trim()
-                : Config.getColor(node.category);
+        if (!Array.isArray(rows) || rows.length === 0) {
+            throw new Error('暂无可导出的 Excel 数据');
+        }
 
-            return {
-                id: node.id,
-                name: node.name,
-                category: node.category,
-                size,
-                color,
-                properties: node.properties && Object.keys(node.properties).length ? JSON.stringify(node.properties) : ''
-            };
-        });
-
-        const links = (graph.links || []).map((link) => ({
-            source: link.source,
-            target: link.target,
-            name: link.name || '',
-            properties: link.properties && Object.keys(link.properties).length ? JSON.stringify(link.properties) : ''
-        }));
-
-        const categories = graphData.categories && graphData.categories.length
-            ? graphData.categories
-            : this.buildCategoriesFromNodes(nodes);
-        const meta = graphData.meta || this.buildMeta(nodes, links);
-
+        const headers = this.getChainHeaders();
+        const body = rows.map((row) =>
+            headers.map((header) => this.normalizeCell(row[header]))
+        );
+        const sheet = XLSX.utils.aoa_to_sheet([headers, ...body]);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(nodes), 'nodes');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(links), 'links');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([meta]), 'meta');
-        XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(categories), 'categories');
+        XLSX.utils.book_append_sheet(workbook, sheet, '图谱');
 
         XLSX.writeFile(workbook, `${filename}_${this.formatDate(new Date())}.xlsx`);
     },
 
     async exportTemplateExcel(filename = '图谱模板') {
         const XLSX = await this.loadSheetJS();
-        const workbook = XLSX.utils.book_new();
-
-        const nodesHeaders = [['id', 'name', 'category', 'size', 'color', 'properties']];
-        const linksHeaders = [['source', 'target', 'name', 'properties']];
-        const metaHeaders = [['title', 'exportTime', 'nodeCount', 'linkCount']];
-        const categoriesHeaders = [['name', 'count', 'color', 'size']];
-
-        const nodesSheet = XLSX.utils.aoa_to_sheet(nodesHeaders);
-        const linksSheet = XLSX.utils.aoa_to_sheet(linksHeaders);
-        const metaSheet = XLSX.utils.aoa_to_sheet(metaHeaders);
-        const categoriesSheet = XLSX.utils.aoa_to_sheet(categoriesHeaders);
+        const headers = this.getChainHeaders();
+        const sheet = XLSX.utils.aoa_to_sheet([headers]);
 
         const requiredStyle = {
             fill: { patternType: 'solid', fgColor: { rgb: 'FFFCE8B2' } },
             font: { bold: true, color: { rgb: 'FF8A4B08' } }
         };
-        const markRequired = (sheet, cell) => {
-            if (sheet[cell]) {
-                sheet[cell].s = requiredStyle;
+        const markRequired = (cellAddress) => {
+            if (sheet[cellAddress]) {
+                sheet[cellAddress].s = requiredStyle;
             }
         };
 
-        // nodes: id 必填
-        markRequired(nodesSheet, 'A1');
-        // links: source/target 必填
-        markRequired(linksSheet, 'A1');
-        markRequired(linksSheet, 'B1');
+        this.CHAIN_SPEC.forEach((spec, index) => {
+            if (spec.kind === 'node') {
+                markRequired(XLSX.utils.encode_cell({ r: 0, c: index }));
+            }
+        });
 
-        XLSX.utils.book_append_sheet(workbook, nodesSheet, 'nodes');
-        XLSX.utils.book_append_sheet(workbook, linksSheet, 'links');
-        XLSX.utils.book_append_sheet(workbook, metaSheet, 'meta');
-        XLSX.utils.book_append_sheet(workbook, categoriesSheet, 'categories');
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, sheet, '图谱');
 
         XLSX.writeFile(workbook, `${filename}.xlsx`);
     },
@@ -1532,7 +1667,7 @@ const Graph = {
 
     
     getCategories() {
-        const categoryNames = ['专业', '课程类别', '课程名称', '能力类型', '能力', '能力点'];
+        const categoryNames = ['专业', '岗位', '课程类别', '课程名称', '能力类型', '能力', '能力点'];
         return categoryNames.map(name => ({
             name: name,
             itemStyle: {
@@ -1687,7 +1822,11 @@ const App = {
         dataLoaded: false,
         currentCourse: 'all',
         currentLevel: 3,
-        panelOpen: false
+        panelOpen: false,
+        opsOpen: false,
+        opsAuthorized: false,
+        dataSourceType: 'json',
+        excelRows: []
     },
 
     
@@ -1733,6 +1872,8 @@ const App = {
         
         try {
             const data = await Utils.loadData(useRemote);
+            this.state.dataSourceType = 'json';
+            this.state.excelRows = [];
             this.applyGraphData(data);
             Utils.toggleLoading(false);
             
@@ -1860,6 +2001,23 @@ const App = {
                 this.restoreBackup();
             });
         }
+        const btnOpsMenu = document.getElementById('btnOpsMenu');
+        const opsPanel = document.getElementById('opsPanel');
+        if (btnOpsMenu && opsPanel) {
+            btnOpsMenu.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                await this.toggleOpsPanel();
+            });
+            opsPanel.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+            document.addEventListener('click', (e) => {
+                if (!this.state.opsOpen) return;
+                if (!opsPanel.contains(e.target) && !btnOpsMenu.contains(e.target)) {
+                    this.setOpsPanel(false);
+                }
+            });
+        }
 
         // 设置面板切换
         const btnTogglePanel = document.getElementById('btnTogglePanel');
@@ -1929,7 +2087,7 @@ const App = {
     
     bindSliderEvents() {
         const sliders = [
-            'sizeMajor', 'sizeCategory', 'sizeCourse', 'sizeType', 'sizeAbility', 'sizePoint',
+            'sizeMajor', 'sizeRole', 'sizeCategory', 'sizeCourse', 'sizeType', 'sizeAbility', 'sizePoint',
             'lineWidth', 'lineOpacity', 'repulsion', 'edgeLength', 'gravity'
         ];
 
@@ -1960,7 +2118,7 @@ const App = {
     
     bindColorEvents() {
         const colorInputs = [
-            'colorMajor', 'colorCategory', 'colorCourse', 
+            'colorMajor', 'colorRole', 'colorCategory', 'colorCourse',
             'colorType', 'colorAbility', 'colorPoint'
         ];
 
@@ -1985,6 +2143,7 @@ const App = {
     getColorCategory(colorId) {
         const map = {
             'colorMajor': 'major',
+            'colorRole': 'role',
             'colorCategory': 'category',
             'colorCourse': 'course',
             'colorType': 'type',
@@ -2130,9 +2289,60 @@ const App = {
         }
     },
 
+    async toggleOpsPanel() {
+        if (this.state.opsOpen) {
+            this.setOpsPanel(false);
+            return;
+        }
+
+        const access = await this.ensureOpsAccess();
+        if (access) {
+            this.setOpsPanel(true);
+        }
+    },
+
+    setOpsPanel(open) {
+        const panel = document.getElementById('opsPanel');
+        if (!panel) return;
+        this.state.opsOpen = open;
+        if (open) {
+            panel.classList.add('active');
+        } else {
+            panel.classList.remove('active');
+        }
+    },
+
+    async ensureOpsAccess() {
+        if (this.state.opsAuthorized) {
+            return true;
+        }
+        const password = await Utils.getOpsPassword();
+        if (!password) {
+            alert('运维密码未配置');
+            return false;
+        }
+        const input = prompt('请输入运维密码');
+        if (input === null) {
+            return false;
+        }
+        if (input !== password) {
+            alert('密码错误');
+            return false;
+        }
+        this.state.opsAuthorized = true;
+        return true;
+    },
+
     async importExcel(file) {
         if (!file) return;
-        if (!/\\.xlsx?$/.test(file.name.toLowerCase())) {
+        const fileName = (file.name || '').trim().toLowerCase();
+        const isExcelName = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+        const excelTypes = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel'
+        ];
+        const isExcelType = file.type ? excelTypes.includes(file.type) : false;
+        if (!isExcelName && !isExcelType) {
             alert('请上传 .xlsx 或 .xls 文件');
             return;
         }
@@ -2144,12 +2354,14 @@ const App = {
 
         Utils.toggleLoading(true);
         try {
-            const { graphData, skippedNodes, skippedLinks, missingRefs } = await Utils.parseExcelFile(file);
+            const { graphData, normalizedRows, invalidRows } = await Utils.parseExcelFile(file);
             this.applyGraphData(graphData);
+            this.state.dataSourceType = 'excel';
+            this.state.excelRows = normalizedRows || [];
             Utils.toggleLoading(false);
 
-            if (skippedNodes > 0 || skippedLinks > 0 || missingRefs > 0) {
-                const message = `导入完成，跳过节点 ${skippedNodes} 条，跳过关系 ${skippedLinks + missingRefs} 条。`;
+            if (invalidRows > 0) {
+                const message = `导入完成，已跳过 ${invalidRows} 行（节点信息不完整）。`;
                 console.warn(message);
                 alert(message);
             }
@@ -2160,13 +2372,16 @@ const App = {
     },
 
     async exportExcel() {
-        const data = Graph.currentData || Graph.rawData;
-        if (!data) {
-            alert('图表尚未加载完成');
+        if (this.state.dataSourceType !== 'excel') {
+            alert('当前数据来源为 JSON，请直接导出 JSON');
+            return;
+        }
+        if (!this.state.excelRows || this.state.excelRows.length === 0) {
+            alert('暂无可导出的 Excel 数据');
             return;
         }
         try {
-            await Utils.exportExcel(data, '专业能力图谱系统');
+            await Utils.exportExcel(this.state.excelRows, '专业能力图谱系统');
         } catch (error) {
             this.showError(`导出失败: ${error.message || error}`);
         }
@@ -2195,6 +2410,8 @@ const App = {
         Utils.toggleLoading(true);
         try {
             this.applyGraphData(backup.data);
+            this.state.dataSourceType = 'json';
+            this.state.excelRows = [];
             Utils.toggleLoading(false);
         } catch (error) {
             Utils.toggleLoading(false);
