@@ -66,6 +66,8 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 - `links` 字段建议：`source`、`target`、`name`、`properties`
 - 缺失的 `size` / `color` / `properties` 会按 `Config` 默认配置自动补全
 - 如果 `links` 里的 `source/target` 在 `nodes` 中不存在，会给出警告并跳过该关系
+- 模板中必填字段会用颜色标记（若 Excel 不显示颜色，以列名为准）
+- 每次导入前会自动备份当前图谱数据，可通过“恢复备份”一键回滚
 
 ## 性能说明
 

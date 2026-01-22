@@ -55,6 +55,9 @@ export default function Home() {
           <button id="btnTemplateExcel" className="btn btn-secondary" type="button">
             <span className="icon">🧾</span> 下载模板
           </button>
+          <button id="btnRestoreBackup" className="btn btn-secondary" type="button">
+            <span className="icon">🕘</span> 恢复备份
+          </button>
           <button id="btnExport" className="btn btn-success" type="button">
             <span className="icon">📷</span> 导出图片
           </button>

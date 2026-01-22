@@ -470,8 +470,9 @@ const Utils = {
         this.remoteDataUrl = url;
     },
 
-    SHEETJS_URL: 'vendor/xlsx.full.min.js',
+    SHEETJS_URL: '/vendor/xlsx.full.min.js',
     sheetJSImportPromise: null,
+    BACKUP_KEY: 'graph_backup_latest',
 
     loadSheetJS() {
         if (window.XLSX) {
@@ -501,6 +502,43 @@ const Utils = {
         });
 
         return this.sheetJSImportPromise;
+    },
+
+    saveBackup(data) {
+        if (!data) {
+            return false;
+        }
+        try {
+            const payload = {
+                savedAt: new Date().toISOString(),
+                data: this.deepClone(data)
+            };
+            localStorage.setItem(this.BACKUP_KEY, JSON.stringify(payload));
+            return true;
+        } catch (error) {
+            console.warn('备份保存失败:', error);
+            return false;
+        }
+    },
+
+    loadBackup() {
+        try {
+            const raw = localStorage.getItem(this.BACKUP_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch (error) {
+            console.warn('备份读取失败:', error);
+            return null;
+        }
+    },
+
+    getBackupLabel(backup) {
+        if (!backup || !backup.savedAt) return '';
+        const date = new Date(backup.savedAt);
+        if (Number.isNaN(date.getTime())) {
+            return backup.savedAt;
+        }
+        return this.formatDate(date);
     },
 
     getSheetByName(workbook, candidates) {
@@ -1695,23 +1733,7 @@ const App = {
         
         try {
             const data = await Utils.loadData(useRemote);
-            Graph.setData(data);
-            
-            // 填充课程选择器
-            this.populateCourseSelector(data);
-            
-            // 初始化层级选择器的值
-            this.state.currentLevel = Config.current.display.defaultLevel || 3;
-            const levelSelect = document.getElementById('levelSelect');
-            if (levelSelect) {
-                levelSelect.value = this.state.currentLevel;
-            }
-            
-            // 按默认层级过滤后渲染图谱
-            const filteredData = Utils.filterByLevel(data, this.state.currentLevel);
-            Graph.render(filteredData);
-            
-            this.state.dataLoaded = true;
+            this.applyGraphData(data);
             Utils.toggleLoading(false);
             
         } catch (error) {
@@ -1719,6 +1741,25 @@ const App = {
             this.showError('数据加载失败: ' + error.message);
             throw error;
         }
+    },
+
+    applyGraphData(graphData) {
+        Graph.setData(graphData);
+
+        this.populateCourseSelector(graphData);
+        this.state.currentCourse = 'all';
+
+        const levelSelect = document.getElementById('levelSelect');
+        if (levelSelect) {
+            levelSelect.disabled = false;
+            this.state.currentLevel = Config.current.display.defaultLevel || 3;
+            levelSelect.value = this.state.currentLevel;
+        }
+
+        const filteredData = Utils.filterByLevel(graphData, this.state.currentLevel);
+        Graph.render(filteredData);
+
+        this.state.dataLoaded = true;
     },
 
     
@@ -1790,6 +1831,7 @@ const App = {
         const btnImportExcel = document.getElementById('btnImportExcel');
         const btnExportExcel = document.getElementById('btnExportExcel');
         const btnTemplateExcel = document.getElementById('btnTemplateExcel');
+        const btnRestoreBackup = document.getElementById('btnRestoreBackup');
         const excelFileInput = document.getElementById('excelFileInput');
         if (btnImportExcel && excelFileInput) {
             btnImportExcel.addEventListener('click', () => {
@@ -1811,6 +1853,11 @@ const App = {
         if (btnTemplateExcel) {
             btnTemplateExcel.addEventListener('click', () => {
                 this.exportTemplateExcel();
+            });
+        }
+        if (btnRestoreBackup) {
+            btnRestoreBackup.addEventListener('click', () => {
+                this.restoreBackup();
             });
         }
 
@@ -2090,23 +2137,15 @@ const App = {
             return;
         }
 
+        const currentData = Graph.rawData || Graph.currentData;
+        if (currentData) {
+            Utils.saveBackup(currentData);
+        }
+
         Utils.toggleLoading(true);
         try {
             const { graphData, skippedNodes, skippedLinks, missingRefs } = await Utils.parseExcelFile(file);
-            Graph.setData(graphData);
-
-            this.populateCourseSelector(graphData);
-            this.state.currentCourse = 'all';
-
-            const levelSelect = document.getElementById('levelSelect');
-            if (levelSelect) {
-                levelSelect.disabled = false;
-                this.state.currentLevel = Config.current.display.defaultLevel || 3;
-                levelSelect.value = this.state.currentLevel;
-            }
-
-            const filteredData = Utils.filterByLevel(graphData, this.state.currentLevel);
-            Graph.render(filteredData);
+            this.applyGraphData(graphData);
             Utils.toggleLoading(false);
 
             if (skippedNodes > 0 || skippedLinks > 0 || missingRefs > 0) {
@@ -2138,6 +2177,28 @@ const App = {
             await Utils.exportTemplateExcel('专业能力图谱系统_模板');
         } catch (error) {
             this.showError(`模板下载失败: ${error.message || error}`);
+        }
+    },
+
+    restoreBackup() {
+        const backup = Utils.loadBackup();
+        if (!backup || !backup.data) {
+            alert('暂无可恢复的备份');
+            return;
+        }
+        const label = Utils.getBackupLabel(backup);
+        const confirmMessage = label ? `确定恢复备份（${label}）？` : '确定恢复备份？';
+        if (!confirm(confirmMessage)) {
+            return;
+        }
+
+        Utils.toggleLoading(true);
+        try {
+            this.applyGraphData(backup.data);
+            Utils.toggleLoading(false);
+        } catch (error) {
+            Utils.toggleLoading(false);
+            this.showError(`恢复备份失败: ${error.message || error}`);
         }
     },
 
