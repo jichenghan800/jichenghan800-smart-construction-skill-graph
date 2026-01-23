@@ -11,7 +11,7 @@ export default function Home() {
 
       <header className="toolbar">
         <div className="toolbar-left">
-          <h1 className="logo">专业能力图谱系统</h1>
+          <h1 id="graphTitle" className="logo">专业能力图谱系统</h1>
         </div>
         <div className="toolbar-center">
           <div className="course-selector">

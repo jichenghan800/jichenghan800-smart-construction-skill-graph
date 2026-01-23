@@ -935,6 +935,21 @@ const Utils = {
         };
     },
 
+    parseTitleSheet(XLSX, sheet) {
+        if (!sheet) return '';
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+            const row = rows[rowIndex] || [];
+            for (let colIndex = 0; colIndex < row.length; colIndex += 1) {
+                const value = this.normalizeCell(row[colIndex]);
+                if (value) {
+                    return value;
+                }
+            }
+        }
+        return '';
+    },
+
     parseCategoriesSheet(XLSX, sheet) {
         if (!sheet) return [];
         const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true });
@@ -973,7 +988,13 @@ const Utils = {
 
         const { nodes, links, normalizedRows, invalidRows } = this.parseChainSheet(XLSX, sheet);
         const categories = this.buildCategoriesFromNodes(nodes);
-        const meta = this.buildMeta(nodes, links);
+        let titleSheet = this.getSheetByName(workbook, ['标题', 'title', 'header']);
+        if (!titleSheet && workbook.SheetNames.length > 1) {
+            const fallbackName = workbook.SheetNames[1];
+            titleSheet = workbook.Sheets[fallbackName];
+        }
+        const customTitle = this.parseTitleSheet(XLSX, titleSheet);
+        const meta = this.buildMeta(nodes, links, customTitle || '专业能力图谱系统');
 
         const graphData = {
             meta,
@@ -1031,6 +1052,8 @@ const Utils = {
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, sheet, '图谱');
+        const titleSheet = XLSX.utils.aoa_to_sheet([['']]);
+        XLSX.utils.book_append_sheet(workbook, titleSheet, '标题');
 
         XLSX.writeFile(workbook, `${filename}.xlsx`);
     },
@@ -1826,6 +1849,7 @@ const App = {
         dataLoaded: false,
         currentCourse: 'all',
         currentLevel: 3,
+        currentTitle: '专业能力图谱系统',
         panelOpen: false,
         opsOpen: false,
         opsAuthorized: false,
@@ -1890,6 +1914,10 @@ const App = {
 
     applyGraphData(graphData) {
         Graph.setData(graphData);
+        const title = graphData && graphData.meta && graphData.meta.title
+            ? String(graphData.meta.title).trim()
+            : '';
+        this.updateTitle(title);
 
         this.populateCourseSelector(graphData);
         this.state.currentCourse = 'all';
@@ -1905,6 +1933,16 @@ const App = {
         Graph.render(filteredData);
 
         this.state.dataLoaded = true;
+    },
+
+    updateTitle(title) {
+        const normalizedTitle = title || '专业能力图谱系统';
+        this.state.currentTitle = normalizedTitle;
+        const titleEl = document.getElementById('graphTitle');
+        if (titleEl) {
+            titleEl.textContent = normalizedTitle;
+        }
+        document.title = normalizedTitle;
     },
 
     
@@ -2286,7 +2324,8 @@ const App = {
         const chartInstance = Graph.getChartInstance();
         if (chartInstance) {
             const courseName = this.state.currentCourse === 'all' ? '全部专业' : '专业图谱';
-            Utils.exportImage(chartInstance, `专业能力图谱系统_${courseName}`);
+            const title = this.state.currentTitle || '专业能力图谱系统';
+            Utils.exportImage(chartInstance, `${title}_${courseName}`);
         } else {
             alert('图表尚未加载完成');
         }
