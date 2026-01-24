@@ -1114,6 +1114,7 @@ const Utils = {
         if (!Array.isArray(rows) || rows.length === 0) {
             throw new Error('暂无可导出的 Excel 数据');
         }
+        const safeName = this.sanitizeFilename(filename);
 
         const headers = this.getChainHeaders();
         const body = rows.map((row) =>
@@ -1123,19 +1124,20 @@ const Utils = {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, sheet, '图谱');
 
-        XLSX.writeFile(workbook, `${filename}_${this.formatDate(new Date())}.xlsx`);
+        XLSX.writeFile(workbook, `${safeName}_${this.formatDate(new Date())}.xlsx`);
     },
 
     async exportJson(data, filename = '专业能力图谱系统') {
         if (!data) {
             throw new Error('暂无可导出的 JSON 数据');
         }
+        const safeName = this.sanitizeFilename(filename);
         const payload = JSON.stringify(data, null, 2);
         const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `${filename}_${this.formatDate(new Date())}.json`;
+        link.download = `${safeName}_${this.formatDate(new Date())}.json`;
         document.body.appendChild(link);
         link.click();
         link.remove();
@@ -1425,6 +1427,17 @@ const Utils = {
         const hour = String(date.getHours()).padStart(2, '0');
         const minute = String(date.getMinutes()).padStart(2, '0');
         return `${year}${month}${day}_${hour}${minute}`;
+    },
+
+    sanitizeFilename(name) {
+        if (!name || typeof name !== 'string') {
+            return '专业能力图谱系统';
+        }
+        const cleaned = name
+            .replace(/[\\/:*?"<>|]/g, '_')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return cleaned || '专业能力图谱系统';
     },
 
     
@@ -3236,7 +3249,8 @@ const App = {
             return;
         }
         try {
-            await Utils.exportExcel(this.state.excelRows, '专业能力图谱系统');
+            const title = Utils.sanitizeFilename(this.state.currentTitle || '专业能力图谱系统');
+            await Utils.exportExcel(this.state.excelRows, title);
         } catch (error) {
             this.showError(`导出失败: ${error.message || error}`);
         }
@@ -3249,7 +3263,8 @@ const App = {
             return;
         }
         try {
-            await Utils.exportJson(currentData, '专业能力图谱系统');
+            const title = Utils.sanitizeFilename(this.state.currentTitle || '专业能力图谱系统');
+            await Utils.exportJson(currentData, title);
         } catch (error) {
             this.showError(`导出失败: ${error.message || error}`);
         }
