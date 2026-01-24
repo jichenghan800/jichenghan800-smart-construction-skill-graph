@@ -1,6 +1,10 @@
 const Config = {
     // 存储键名
     STORAGE_KEY: 'graph_config_v3',
+    LEVEL_SIZE_MAX: 100,
+    LEVEL_SIZE_STEP: 15,
+    LEVEL_SIZE_MIN: 20,
+    BASE_COLOR_ORDER: ['专业', '课程类别', '课程名称', '能力类型', '能力', '能力点'],
 
     // 预设主题
     themes: {
@@ -78,15 +82,7 @@ const Config = {
             '能力点': '#1ABC9C'
         },
         
-        // 节点大小
-        sizes: {
-            '专业': 100,
-            '课程类别': 85,
-            '课程名称': 75,
-            '能力类型': 70,
-            '能力': 60,
-            '能力点': 45
-        },
+        levelSettings: [],
         
         // 显示设置
         display: {
@@ -132,6 +128,10 @@ const Config = {
             const stored = localStorage.getItem(this.STORAGE_KEY);
             if (stored) {
                 const config = JSON.parse(stored);
+                if (this.isLegacyConfig(config)) {
+                    localStorage.clear();
+                    return null;
+                }
                 // 合并默认配置（处理新增字段）
                 return this.mergeWithDefaults(config);
             }
@@ -158,8 +158,11 @@ const Config = {
         if (config.colors) {
             Object.assign(merged.colors, config.colors);
         }
-        if (config.sizes) {
-            Object.assign(merged.sizes, config.sizes);
+        if (Array.isArray(config.levelSettings)) {
+            merged.levelSettings = config.levelSettings.map((setting) => ({
+                size: Number.isFinite(Number(setting.size)) ? Number(setting.size) : null,
+                visible: setting.visible !== false
+            }));
         }
         if (config.display) {
             Object.assign(merged.display, config.display);
@@ -226,6 +229,17 @@ const Config = {
         }));
     },
 
+    isLegacyConfig(config) {
+        if (!config || typeof config !== 'object') {
+            return false;
+        }
+        return Boolean(
+            config.sizes ||
+            Object.prototype.hasOwnProperty.call(config, 'sizeMajor') ||
+            Object.prototype.hasOwnProperty.call(config, 'majorSize')
+        );
+    },
+
     
     setColor(category, color) {
         if (this.current.colors.hasOwnProperty(category)) {
@@ -233,13 +247,23 @@ const Config = {
         }
     },
 
-    
-    setSize(category, size) {
-        if (this.current.sizes.hasOwnProperty(category)) {
-            this.current.sizes[category] = parseInt(size);
-        }
+    getLevelColors() {
+        return this.BASE_COLOR_ORDER.map((name) => this.getColor(name));
     },
 
+    setBaseColor(levelIndex, color) {
+        if (!Number.isFinite(levelIndex)) {
+            return;
+        }
+        const names = this.BASE_COLOR_ORDER;
+        if (!names.length) return;
+        const index = ((levelIndex % names.length) + names.length) % names.length;
+        this.setColor(names[index], color);
+        this.updateCSSVariables();
+        this.save();
+    },
+
+    
     
     setDisplay(key, value) {
         if (this.current.display.hasOwnProperty(key)) {
@@ -267,8 +291,74 @@ const Config = {
     },
 
     
-    getSize(category) {
-        return this.current.sizes[category] || 25;
+    getSize() {
+        return this.getLevelSize(0);
+    },
+
+    ensureLevelSettings(levelCount) {
+        if (!this.current.levelSettings) {
+            this.current.levelSettings = [];
+        }
+        if (!Number.isFinite(levelCount) || levelCount <= 0) {
+            return;
+        }
+        const settings = this.current.levelSettings.slice(0, levelCount);
+        for (let i = settings.length; i < levelCount; i += 1) {
+            settings.push(this.buildDefaultLevelSetting(i));
+        }
+        this.current.levelSettings = settings.map((setting, index) => ({
+            size: Number.isFinite(Number(setting.size)) ? Number(setting.size) : this.getDefaultLevelSize(index),
+            visible: setting.visible !== false
+        }));
+    },
+
+    buildDefaultLevelSetting(levelIndex) {
+        return {
+            size: this.getDefaultLevelSize(levelIndex),
+            visible: true
+        };
+    },
+
+    getDefaultLevelSize(levelIndex) {
+        return Math.max(
+            this.LEVEL_SIZE_MAX - (levelIndex * this.LEVEL_SIZE_STEP),
+            this.LEVEL_SIZE_MIN
+        );
+    },
+
+    getLevelSettings() {
+        return Array.isArray(this.current.levelSettings) ? this.current.levelSettings : [];
+    },
+
+    getLevelSize(levelIndex) {
+        if (!Number.isFinite(levelIndex) || levelIndex < 0) {
+            return this.getDefaultLevelSize(0);
+        }
+        this.ensureLevelSettings(levelIndex + 1);
+        return this.current.levelSettings[levelIndex].size;
+    },
+
+    isLevelVisible(levelIndex) {
+        if (!Number.isFinite(levelIndex) || levelIndex < 0) {
+            return true;
+        }
+        this.ensureLevelSettings(levelIndex + 1);
+        return this.current.levelSettings[levelIndex].visible !== false;
+    },
+
+    updateLevelSize(levelIndex, value) {
+        this.ensureLevelSettings(levelIndex + 1);
+        const sizeValue = parseInt(value, 10);
+        this.current.levelSettings[levelIndex].size = Number.isFinite(sizeValue)
+            ? sizeValue
+            : this.getDefaultLevelSize(levelIndex);
+        this.save();
+    },
+
+    updateLevelVisibility(levelIndex, isVisible) {
+        this.ensureLevelSettings(levelIndex + 1);
+        this.current.levelSettings[levelIndex].visible = isVisible === true;
+        this.save();
     },
 
     
@@ -280,22 +370,6 @@ const Config = {
         this.setInputValue('colorType', this.current.colors['能力类型']);
         this.setInputValue('colorAbility', this.current.colors['能力']);
         this.setInputValue('colorPoint', this.current.colors['能力点']);
-        
-        // 大小配置
-        this.setInputValue('sizeMajor', this.current.sizes['专业']);
-        this.setInputValue('sizeCategory', this.current.sizes['课程类别']);
-        this.setInputValue('sizeCourse', this.current.sizes['课程名称']);
-        this.setInputValue('sizeType', this.current.sizes['能力类型']);
-        this.setInputValue('sizeAbility', this.current.sizes['能力']);
-        this.setInputValue('sizePoint', this.current.sizes['能力点']);
-        
-        // 更新显示值
-        this.updateSliderDisplay('sizeMajor', this.current.sizes['专业']);
-        this.updateSliderDisplay('sizeCategory', this.current.sizes['课程类别']);
-        this.updateSliderDisplay('sizeCourse', this.current.sizes['课程名称']);
-        this.updateSliderDisplay('sizeType', this.current.sizes['能力类型']);
-        this.updateSliderDisplay('sizeAbility', this.current.sizes['能力']);
-        this.updateSliderDisplay('sizePoint', this.current.sizes['能力点']);
         
         // 显示设置
         this.setCheckboxValue('showLabels', this.current.display.showLabels);
@@ -328,21 +402,19 @@ const Config = {
 
     
     readFromDOM() {
-        // 颜色配置
-        this.current.colors['专业'] = this.getInputValue('colorMajor') || this.defaults.colors['专业'];
-        this.current.colors['课程类别'] = this.getInputValue('colorCategory') || this.defaults.colors['课程类别'];
-        this.current.colors['课程名称'] = this.getInputValue('colorCourse') || this.defaults.colors['课程名称'];
-        this.current.colors['能力类型'] = this.getInputValue('colorType') || this.defaults.colors['能力类型'];
-        this.current.colors['能力'] = this.getInputValue('colorAbility') || this.defaults.colors['能力'];
-        this.current.colors['能力点'] = this.getInputValue('colorPoint') || this.defaults.colors['能力点'];
-        
-        // 大小配置
-        this.current.sizes['专业'] = parseInt(this.getInputValue('sizeMajor')) || this.defaults.sizes['专业'];
-        this.current.sizes['课程类别'] = parseInt(this.getInputValue('sizeCategory')) || this.defaults.sizes['课程类别'];
-        this.current.sizes['课程名称'] = parseInt(this.getInputValue('sizeCourse')) || this.defaults.sizes['课程名称'];
-        this.current.sizes['能力类型'] = parseInt(this.getInputValue('sizeType')) || this.defaults.sizes['能力类型'];
-        this.current.sizes['能力'] = parseInt(this.getInputValue('sizeAbility')) || this.defaults.sizes['能力'];
-        this.current.sizes['能力点'] = parseInt(this.getInputValue('sizePoint')) || this.defaults.sizes['能力点'];
+        const hasColorInputs = [
+            'colorMajor', 'colorCategory', 'colorCourse',
+            'colorType', 'colorAbility', 'colorPoint'
+        ].some((id) => document.getElementById(id));
+        if (hasColorInputs) {
+            // 颜色配置
+            this.current.colors['专业'] = this.getInputValue('colorMajor') || this.defaults.colors['专业'];
+            this.current.colors['课程类别'] = this.getInputValue('colorCategory') || this.defaults.colors['课程类别'];
+            this.current.colors['课程名称'] = this.getInputValue('colorCourse') || this.defaults.colors['课程名称'];
+            this.current.colors['能力类型'] = this.getInputValue('colorType') || this.defaults.colors['能力类型'];
+            this.current.colors['能力'] = this.getInputValue('colorAbility') || this.defaults.colors['能力'];
+            this.current.colors['能力点'] = this.getInputValue('colorPoint') || this.defaults.colors['能力点'];
+        }
         
         // 显示设置
         this.current.display.showLabels = this.getCheckboxValue('showLabels');
@@ -625,18 +697,29 @@ const Utils = {
         }
 
         const rawHeaders = rows[0].map((cell) => this.normalizeCell(cell));
-        const headerIndex = new Map();
+        if (!rawHeaders.length) {
+            throw new Error('Excel 表头为空');
+        }
+        if (rawHeaders.length % 2 === 0) {
+            throw new Error(`表头列数必须为奇数，当前为 ${rawHeaders.length}`);
+        }
         rawHeaders.forEach((header, index) => {
-            if (header) {
-                headerIndex.set(header, index);
+            if (!header) {
+                throw new Error(`表头第 ${index + 1} 列为空`);
             }
         });
 
-        const requiredHeaders = this.getChainHeaders();
-        const missingHeaders = requiredHeaders.filter((header) => !headerIndex.has(header));
-        if (missingHeaders.length) {
-            throw new Error(`缺少列: ${missingHeaders.join('、')}`);
-        }
+        const chainSpec = rawHeaders.map((header, index) => {
+            const isNode = index % 2 === 0;
+            return {
+                kind: isNode ? 'node' : 'rel',
+                key: header,
+                category: isNode ? header : null,
+                depth: isNode ? Math.floor(index / 2) : null,
+                index
+            };
+        });
+        const nodeTypes = chainSpec.filter((spec) => spec.kind === 'node').map((spec) => spec.key);
 
         const nodes = [];
         const links = [];
@@ -653,12 +736,16 @@ const Utils = {
 
             const rowData = {};
             let hasMissingNode = false;
-            this.CHAIN_SPEC.forEach((spec) => {
-                const index = headerIndex.get(spec.key);
-                const value = index !== undefined ? this.normalizeCell(row[index]) : '';
+            chainSpec.forEach((spec) => {
+                const value = this.normalizeCell(row[spec.index]);
                 rowData[spec.key] = value;
                 if (spec.kind === 'node' && !value) {
                     hasMissingNode = true;
+                }
+                if (spec.kind === 'rel' && !value) {
+                    const rowNumber = i + 1;
+                    const colNumber = spec.index + 1;
+                    throw new Error(`第 ${rowNumber} 行 第 ${colNumber} 列关系缺失`);
                 }
             });
 
@@ -671,7 +758,7 @@ const Utils = {
             let prevNodeId = null;
             let pendingRelation = '';
 
-            this.CHAIN_SPEC.forEach((spec) => {
+            chainSpec.forEach((spec) => {
                 const value = rowData[spec.key] || '';
                 if (spec.kind === 'rel') {
                     pendingRelation = value;
@@ -687,6 +774,7 @@ const Utils = {
                         id: nodeId,
                         name: value,
                         category: spec.category,
+                        depth: spec.depth,
                         properties: {}
                     });
                 }
@@ -720,7 +808,8 @@ const Utils = {
             nodes,
             links,
             normalizedRows,
-            invalidRows
+            invalidRows,
+            nodeTypes
         };
     },
 
@@ -799,26 +888,34 @@ const Utils = {
 
     buildCategoriesFromNodes(nodes) {
         const counts = {};
+        const depths = {};
         nodes.forEach(node => {
             const category = node.category || '未分类';
             counts[category] = (counts[category] || 0) + 1;
+            if (depths[category] === undefined && Number.isFinite(Number(node.depth))) {
+                depths[category] = Number(node.depth);
+            }
         });
 
         return Object.entries(counts).map(([name, count]) => ({
             name,
             count,
             color: Config.getColor(name),
-            size: Config.getSize(name)
+            size: Config.getLevelSize(depths[name] ?? 0)
         }));
     },
 
-    buildMeta(nodes, links, title = '专业能力图谱系统') {
-        return {
+    buildMeta(nodes, links, title = '专业能力图谱系统', nodeTypes = []) {
+        const meta = {
             title,
             exportTime: new Date().toISOString(),
             nodeCount: nodes.length,
             linkCount: links.length
         };
+        if (Array.isArray(nodeTypes) && nodeTypes.length) {
+            meta.nodeTypes = [...nodeTypes];
+        }
+        return meta;
     },
 
     parseNodesFromRows(rows) {
@@ -986,7 +1083,7 @@ const Utils = {
             throw new Error('未找到有效工作表');
         }
 
-        const { nodes, links, normalizedRows, invalidRows } = this.parseChainSheet(XLSX, sheet);
+        const { nodes, links, normalizedRows, invalidRows, nodeTypes } = this.parseChainSheet(XLSX, sheet);
         const categories = this.buildCategoriesFromNodes(nodes);
         let titleSheet = this.getSheetByName(workbook, ['标题', 'title', 'header']);
         if (!titleSheet && workbook.SheetNames.length > 1) {
@@ -994,7 +1091,7 @@ const Utils = {
             titleSheet = workbook.Sheets[fallbackName];
         }
         const customTitle = this.parseTitleSheet(XLSX, titleSheet);
-        const meta = this.buildMeta(nodes, links, customTitle || '专业能力图谱系统');
+        const meta = this.buildMeta(nodes, links, customTitle || '专业能力图谱系统', nodeTypes);
 
         const graphData = {
             meta,
@@ -1059,9 +1156,16 @@ const Utils = {
     },
 
     
+    getRootType(graphData) {
+        const meta = graphData && graphData.meta ? graphData.meta : {};
+        const nodeTypes = Array.isArray(meta.nodeTypes) ? meta.nodeTypes : [];
+        return nodeTypes.length ? nodeTypes[0] : '专业';
+    },
+
     getCourseList(graphData) {
         const nodes = graphData.graph ? graphData.graph.nodes : graphData.nodes;
-        return nodes.filter(node => node.category === '专业')
+        const rootType = this.getRootType(graphData);
+        return nodes.filter(node => node.category === rootType)
                     .map(node => ({
                         id: node.id,
                         name: node.name.replace(/ /g, '')  // 移除插入的空格
@@ -1073,9 +1177,9 @@ const Utils = {
         const nodes = graphData.graph ? graphData.graph.nodes : graphData.nodes;
         const links = graphData.graph ? graphData.graph.links : graphData.links;
         
-        // 找到全部专业节点作为起点
-        const majorNodes = nodes.filter(node => node.category === '专业');
-        if (!majorNodes.length) {
+        const rootType = this.getRootType(graphData);
+        const rootNodes = nodes.filter(node => node.category === rootType);
+        if (!rootNodes.length) {
             return graphData;
         }
         
@@ -1084,9 +1188,9 @@ const Utils = {
         
         // BFS按层级获取节点
         const levelNodes = new Set();
-        majorNodes.forEach((majorNode) => {
-            const majorLevelNodes = this.getNodesByLevel(majorNode.id, adjacency, maxLevel);
-            majorLevelNodes.forEach((nodeId) => levelNodes.add(nodeId));
+        rootNodes.forEach((rootNode) => {
+            const rootLevelNodes = this.getNodesByLevel(rootNode.id, adjacency, maxLevel);
+            rootLevelNodes.forEach((nodeId) => levelNodes.add(nodeId));
         });
         
         // 过滤节点
@@ -1471,6 +1575,76 @@ const Graph = {
     layoutType: 'force',  // 'force' | 'circular'
     firstRender: true,
 
+    BASE_COLOR_ORDER: ['专业', '课程类别', '课程名称', '能力类型', '能力', '能力点'],
+
+    getBaseColors() {
+        return Config.getLevelColors();
+    },
+
+    labelMeasureContext: null,
+
+    getMeasureContext() {
+        if (this.labelMeasureContext) {
+            return this.labelMeasureContext;
+        }
+        if (typeof document === 'undefined') {
+            return null;
+        }
+        const canvas = document.createElement('canvas');
+        this.labelMeasureContext = canvas.getContext('2d');
+        return this.labelMeasureContext;
+    },
+
+    getLabelFont(fontSize, fontWeight = 'normal') {
+        if (typeof document === 'undefined') {
+            return `${fontWeight} ${fontSize}px sans-serif`;
+        }
+        const baseFont = document.body
+            ? getComputedStyle(document.body).fontFamily
+            : 'sans-serif';
+        return `${fontWeight} ${fontSize}px ${baseFont}`;
+    },
+
+    getMaxCharsPerLine(text, labelWidth, fontSize, fontWeight = 'normal') {
+        const fallback = Number.isFinite(labelWidth) && Number.isFinite(fontSize)
+            ? Math.max(1, Math.floor(labelWidth / (fontSize * 0.9)))
+            : 1;
+        if (!text || !Number.isFinite(labelWidth) || !Number.isFinite(fontSize)) {
+            return fallback;
+        }
+        const ctx = this.getMeasureContext();
+        if (!ctx || typeof ctx.measureText !== 'function') {
+            return fallback;
+        }
+        const safeWidth = Math.max(1, labelWidth - Math.ceil(fontSize * 0.1));
+        ctx.font = this.getLabelFont(fontSize, fontWeight);
+        let width = 0;
+        let count = 0;
+        for (const ch of Array.from(text)) {
+            const nextWidth = width + ctx.measureText(ch).width;
+            if (nextWidth > safeWidth) {
+                break;
+            }
+            width = nextWidth;
+            count += 1;
+        }
+        return Math.max(1, count || fallback);
+    },
+
+    getNodeDepth(node, nodeTypes) {
+        const depthValue = Number(node.depth);
+        if (Number.isFinite(depthValue)) {
+            return depthValue;
+        }
+        if (Array.isArray(nodeTypes) && node.category) {
+            const index = nodeTypes.indexOf(node.category);
+            if (index >= 0) {
+                return index;
+            }
+        }
+        return 0;
+    },
+
     
     init(containerId) {
         this.container = document.getElementById(containerId);
@@ -1502,8 +1676,31 @@ const Graph = {
 
     
     setData(data) {
+        this.ensureNodeTypes(data);
         this.rawData = data;
         this.currentData = data;
+    },
+
+    ensureNodeTypes(data) {
+        if (!data) return;
+        const meta = data.meta ? { ...data.meta } : {};
+        if (Array.isArray(meta.nodeTypes) && meta.nodeTypes.length) {
+            data.meta = meta;
+            return;
+        }
+        const graphData = data.graph || data;
+        const nodes = Array.isArray(graphData.nodes) ? graphData.nodes : [];
+        const seen = new Set();
+        const ordered = [];
+        nodes.forEach((node) => {
+            if (!node || !node.category) return;
+            if (!seen.has(node.category)) {
+                seen.add(node.category);
+                ordered.push(node.category);
+            }
+        });
+        meta.nodeTypes = ordered.length ? ordered : [...this.BASE_COLOR_ORDER];
+        data.meta = meta;
     },
 
     
@@ -1517,10 +1714,22 @@ const Graph = {
             return;
         }
 
+        const nodeTypes = this.currentData && this.currentData.meta
+            ? this.currentData.meta.nodeTypes
+            : [];
         const graphData = this.currentData.graph || this.currentData;
-        const nodes = this.processNodes(graphData.nodes);
-        const links = this.processLinks(graphData.links);
-        const categories = this.getCategories();
+        const rawNodes = Array.isArray(graphData.nodes) ? graphData.nodes : [];
+        const rawLinks = Array.isArray(graphData.links) ? graphData.links : [];
+        const visibleNodes = rawNodes.filter((node) =>
+            Config.isLevelVisible(this.getNodeDepth(node, nodeTypes))
+        );
+        const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+        const visibleLinks = rawLinks.filter((link) =>
+            visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)
+        );
+        const nodes = this.processNodes(visibleNodes, nodeTypes);
+        const links = this.processLinks(visibleLinks);
+        const categories = this.getCategories(nodeTypes);
 
         // 获取配置
         const echartsConfig = Config.getEChartsConfig();
@@ -1572,7 +1781,16 @@ const Graph = {
                     position: 'inside',
                     fontSize: 12,
                     color: '#333',
-                    fontWeight: 'normal'
+                    fontWeight: 'normal',
+                    formatter: (params) => {
+                        if (params && params.data && params.data.displayName) {
+                            return params.data.displayName;
+                        }
+                        return params && params.name ? params.name : '';
+                    }
+                },
+                labelLayout: {
+                    hideOverlap: true
                 },
                 edgeLabel: {
                     show: echartsConfig.edgeLabel.show,
@@ -1601,11 +1819,7 @@ const Graph = {
                         opacity: 1
                     },
                     label: {
-                        show: true,
-                        position: 'inside',
-                        fontSize: 13,
-                        fontWeight: 'normal',
-                        color: '#000'
+                        show: false
                     }
                 },
                 blur: {
@@ -1635,21 +1849,163 @@ const Graph = {
     },
 
     
-    processNodes(nodes) {
+    processNodes(nodes, nodeTypes = []) {
+        const baseColors = this.getBaseColors();
         return nodes.map(node => {
             const category = node.category;
-            const useCustomStyle = node.useCustomStyle === true;
-            const size = useCustomStyle && Utils.toNumber(node.size) !== null
-                ? Utils.toNumber(node.size)
-                : Config.getSize(category);
-            const color = useCustomStyle && node.color
-                ? String(node.color).trim()
-                : Config.getColor(category);
+            const depth = this.getNodeDepth(node, nodeTypes);
+            const size = Config.getLevelSize(depth);
+            const color = baseColors.length
+                ? baseColors[depth % baseColors.length]
+                : '#999999';
+            const name = node.name ? String(node.name) : '';
+            const fontSize = Math.max(10, Math.min(Math.floor(size / 4.5), 48));
+            const fontWeight = 'normal';
+            const lineHeight = Math.ceil(fontSize * 1.3);
+            const labelWidth = Math.max(12, Math.floor(size * 0.7));
+            const maxLines = Math.max(1, Math.floor((size * 0.8) / lineHeight));
+            let displayName = name;
+            let lineCount = 1;
+            let offsetY = 0;
+            if (name && !name.includes('\n')) {
+                const chars = Array.from(name);
+                const length = chars.length;
+                const maxCharsPerLine = this.getMaxCharsPerLine(name, labelWidth, fontSize, fontWeight);
+                const finalizeLines = (lines) => {
+                    if (!Array.isArray(lines) || lines.length === 0) return [];
+                    if (!Number.isFinite(maxLines) || maxLines <= 0) return [];
+
+                    const needsEllipsis = lines.length > maxLines;
+                    let trimmed = lines.slice(0, maxLines).map((line) => line.replace(/…/g, ''));
+                    const totalLen = trimmed.reduce((sum, line) => sum + line.length, 0);
+
+                    if (totalLen >= 4 && maxCharsPerLine >= 2) {
+                        for (let i = 0; i < trimmed.length; i += 1) {
+                            if (trimmed[i].length !== 1) continue;
+                            if (i > 0 && trimmed[i - 1].length > 2) {
+                                const prev = trimmed[i - 1];
+                                trimmed[i - 1] = prev.slice(0, -1);
+                                trimmed[i] = `${prev.slice(-1)}${trimmed[i]}`;
+                                continue;
+                            }
+                            if (i < trimmed.length - 1 && trimmed[i + 1].length > 2) {
+                                const next = trimmed[i + 1];
+                                trimmed[i + 1] = next.slice(1);
+                                trimmed[i] = `${trimmed[i]}${next.slice(0, 1)}`;
+                            }
+                        }
+                    }
+
+                    const hasSingleCharLine = trimmed.some((line) => line.length === 1);
+                    if (hasSingleCharLine && maxCharsPerLine > 1) {
+                        const targetLines = Math.max(1, Math.min(maxLines - 1, trimmed.length - 1));
+                        if (targetLines >= 1) {
+                            const rebuilt = [];
+                            for (let i = 0; i < chars.length; i += maxCharsPerLine) {
+                                rebuilt.push(chars.slice(i, i + maxCharsPerLine).join(''));
+                            }
+                            trimmed = rebuilt.slice(0, targetLines);
+                            const shouldEllipsize = rebuilt.length > targetLines;
+                            if (shouldEllipsize) {
+                                const lastIndex = trimmed.length - 1;
+                                const last = trimmed[lastIndex] || '';
+                                const safeBase = last.length >= maxCharsPerLine
+                                    ? last.slice(0, Math.max(1, maxCharsPerLine - 1))
+                                    : last;
+                                trimmed[lastIndex] = `${safeBase}…`;
+                            }
+                        }
+                    }
+
+                    if (needsEllipsis) {
+                        const lastIndex = trimmed.length - 1;
+                        const maxLen = Math.max(1, maxCharsPerLine);
+                        if (maxLen <= 1) {
+                            trimmed[lastIndex] = '…';
+                        } else {
+                            const last = trimmed[lastIndex] || '';
+                            const safeBase = last.length >= maxLen
+                                ? last.slice(0, Math.max(1, maxLen - 1))
+                                : last;
+                            trimmed[lastIndex] = `${safeBase}…`;
+                        }
+                    }
+
+                    return trimmed;
+                };
+                const buildLinesByLengths = (lengths) => {
+                    let start = 0;
+                    return lengths.map((len) => {
+                        const line = chars.slice(start, start + len).join('');
+                        start += len;
+                        return line;
+                    }).filter((line) => line);
+                };
+                const buildChunkLines = (chunkSize) => {
+                    const lines = [];
+                    for (let i = 0; i < chars.length; i += chunkSize) {
+                        lines.push(chars.slice(i, i + chunkSize).join(''));
+                    }
+                    return lines;
+                };
+                let lines = [];
+                if (maxLines >= 2 && (length === 4 || length === 5)) {
+                    const maxLen = length === 4 ? 2 : 3;
+                    if (maxCharsPerLine >= maxLen) {
+                        lines = buildLinesByLengths([2, length - 2]);
+                    }
+                }
+                if (maxLines >= 2 && length === 7 && lines.length === 0) {
+                    if (maxCharsPerLine >= 4) {
+                        lines = buildLinesByLengths([3, 4]);
+                    }
+                }
+                if (maxLines >= 2 && lines.length === 0 && maxCharsPerLine > 0 && length > maxCharsPerLine) {
+                    const estimatedLines = Math.ceil(length / maxCharsPerLine);
+                    if (estimatedLines === 2) {
+                        const lower = Math.ceil(length / 2);
+                        const upper = length - lower;
+                        const maxLen = Math.max(lower, upper);
+                        if (maxCharsPerLine >= maxLen) {
+                            lines = buildLinesByLengths([upper, lower]);
+                        } else {
+                            lines = buildChunkLines(maxCharsPerLine);
+                        }
+                    } else if (estimatedLines === 3 && maxLines >= 3) {
+                        const base = Math.floor(length / 3);
+                        const remainder = length % 3;
+                        const middle = base + remainder;
+                        const left = base;
+                        const right = base;
+                        const maxLen = Math.max(left, middle, right);
+                        if (maxCharsPerLine >= maxLen) {
+                            lines = buildLinesByLengths([left, middle, right]);
+                        } else {
+                            lines = buildChunkLines(maxCharsPerLine);
+                        }
+                    } else {
+                        lines = buildChunkLines(maxCharsPerLine);
+                    }
+                }
+                if (lines.length) {
+                    const finalLines = finalizeLines(lines);
+                    if (finalLines.length) {
+                        displayName = finalLines.join('\n');
+                        lineCount = finalLines.length;
+                    }
+                }
+            } else if (name.includes('\n')) {
+                lineCount = name.split('\n').length;
+            }
+            if (lineCount > 1) {
+                offsetY = -Math.round(lineHeight * 0.15);
+            }
 
             return {
                 id: node.id,
-                name: node.name,
+                name,
                 category: category,
+                displayName,
                 symbolSize: size,
                 itemStyle: {
                     color: this.lightenColor(color, 20),
@@ -1664,10 +2020,15 @@ const Graph = {
                     show: Config.current.display.showLabels,
                     position: 'inside',
                     color: '#333',
-                    fontSize: Math.max(10, Math.floor(size / 5.5)),
-                    fontWeight: 'normal',
+                    fontSize,
+                    lineHeight,
+                    width: labelWidth,
+                    height: lineHeight * maxLines,
                     overflow: 'break',
-                    width: size * 0.85
+                    lineOverflow: 'truncate',
+                    lineClamp: maxLines,
+                    fontWeight,
+                    offset: [0, offsetY]
                 },
                 properties: node.properties || {}
             };
@@ -1693,12 +2054,17 @@ const Graph = {
     },
 
     
-    getCategories() {
-        const categoryNames = ['专业', '课程类别', '课程名称', '能力类型', '能力', '能力点'];
-        return categoryNames.map(name => ({
-            name: name,
+    getCategories(nodeTypes = []) {
+        if (!Array.isArray(nodeTypes) || nodeTypes.length === 0) {
+            return [];
+        }
+        const baseColors = this.getBaseColors();
+        return nodeTypes.map((name, index) => ({
+            name,
             itemStyle: {
-                color: Config.getColor(name)
+                color: baseColors.length
+                    ? baseColors[index % baseColors.length]
+                    : '#999999'
             }
         }));
     },
@@ -1856,6 +2222,9 @@ const App = {
         dataSourceType: 'json',
         excelRows: []
     },
+    meta: {
+        nodeTypes: []
+    },
 
     
     async init() {
@@ -1864,6 +2233,18 @@ const App = {
         try {
             // 初始化配置
             Config.init();
+            if (typeof window !== 'undefined') {
+                window.graphApp = this;
+                window.updateLevelSize = (levelIndex, value) => {
+                    this.updateLevelSize(levelIndex, value);
+                };
+                window.updateLevelVisibility = (levelIndex, isVisible) => {
+                    this.updateLevelVisibility(levelIndex, isVisible);
+                };
+                window.updateLevelColor = (levelIndex, color) => {
+                    this.updateLevelColor(levelIndex, color);
+                };
+            }
             
             // 初始化图谱
             Graph.init('graphChart');
@@ -1892,6 +2273,7 @@ const App = {
             themeSelect.value = currentTheme;
         }
         Config.applyTheme(currentTheme);
+        this.dispatchMetaUpdate();
     },
 
     
@@ -1912,12 +2294,90 @@ const App = {
         }
     },
 
+    dispatchMetaUpdate() {
+        if (typeof window === 'undefined') {
+            return;
+        }
+        window.graphApp = this;
+        const detail = {
+            nodeTypes: Array.isArray(this.meta.nodeTypes) ? this.meta.nodeTypes : [],
+            levelSettings: Config.getLevelSettings(),
+            rootType: this.getRootType(),
+            rootOptions: this.getRootOptions(),
+            levelColors: this.getLevelColors()
+        };
+        window.dispatchEvent(new CustomEvent('graphApp:meta', { detail }));
+    },
+
+    getNodeTypes() {
+        return Array.isArray(this.meta.nodeTypes) ? this.meta.nodeTypes : [];
+    },
+
+    getRootType() {
+        const nodeTypes = this.getNodeTypes();
+        return nodeTypes.length ? nodeTypes[0] : '专业';
+    },
+
+    getRootOptions() {
+        const rootType = this.getRootType();
+        const data = Graph.rawData || Graph.currentData;
+        if (!data) return [];
+        const graphData = data.graph || data;
+        const nodes = Array.isArray(graphData.nodes) ? graphData.nodes : [];
+        return nodes
+            .filter((node) => node && node.category === rootType)
+            .map((node) => ({
+                id: node.id,
+                name: node.name ? String(node.name).replace(/ /g, '') : ''
+            }));
+    },
+
+    getLevelSettings() {
+        return Config.getLevelSettings();
+    },
+
+    getLevelColors() {
+        return Config.getLevelColors();
+    },
+
+    getLevelSize(levelIndex) {
+        return Config.getLevelSize(levelIndex);
+    },
+
+    isLevelVisible(levelIndex) {
+        return Config.isLevelVisible(levelIndex);
+    },
+
+    updateLevelSize(levelIndex, value) {
+        Config.updateLevelSize(levelIndex, value);
+        Graph.refresh();
+        this.dispatchMetaUpdate();
+    },
+
+    updateLevelVisibility(levelIndex, isVisible) {
+        Config.updateLevelVisibility(levelIndex, isVisible);
+        Graph.refresh();
+        this.dispatchMetaUpdate();
+    },
+
+    updateLevelColor(levelIndex, color) {
+        Config.setBaseColor(levelIndex, color);
+        Graph.refresh();
+        this.dispatchMetaUpdate();
+    },
+
     applyGraphData(graphData) {
         Graph.setData(graphData);
         const title = graphData && graphData.meta && graphData.meta.title
             ? String(graphData.meta.title).trim()
             : '';
         this.updateTitle(title);
+
+        const meta = graphData && graphData.meta ? graphData.meta : { nodeTypes: [] };
+        const nodeTypes = Array.isArray(meta.nodeTypes) ? meta.nodeTypes : [];
+        Config.ensureLevelSettings(nodeTypes.length);
+        this.meta = meta;
+        this.dispatchMetaUpdate();
 
         this.populateCourseSelector(graphData);
         this.state.currentCourse = 'all';
@@ -1949,24 +2409,12 @@ const App = {
     populateCourseSelector(data) {
         const select = document.getElementById('courseSelect');
         if (!select) return;
-        
-        // 清空现有选项（保留第一个"全部"选项）
-        while (select.options.length > 1) {
-            select.remove(1);
+
+        const firstOption = select.querySelector('option[value="all"]');
+        if (firstOption) {
+            firstOption.textContent = `全部${this.getRootType()}`;
         }
-        
-        // 获取专业列表
-        const majors = Utils.getCourseList(data);
-        
-        // 添加专业选项
-        majors.forEach(course => {
-            const option = document.createElement('option');
-            option.value = course.id;
-            option.textContent = course.name;
-            select.appendChild(option);
-        });
-        
-        console.log(`已加载 ${majors.length} 个专业`);
+        select.value = 'all';
     },
 
     
@@ -2129,7 +2577,6 @@ const App = {
     
     bindSliderEvents() {
         const sliders = [
-            'sizeMajor', 'sizeCategory', 'sizeCourse', 'sizeType', 'sizeAbility', 'sizePoint',
             'lineWidth', 'lineOpacity', 'repulsion', 'edgeLength', 'gravity'
         ];
 
@@ -2196,29 +2643,30 @@ const App = {
 
     
     onCourseChange(courseId) {
+        const rootType = this.getRootType();
         this.state.currentCourse = courseId;
         const levelSelect = document.getElementById('levelSelect');
         
         if (courseId === 'all') {
-            // 全部专业时，启用层级选择，按层级过滤
+            // 全部根节点类型时，启用层级选择，按层级过滤
             if (levelSelect) {
                 levelSelect.disabled = false;
             }
             this.applyLevelFilter();
         } else {
-            // 选择具体专业时，禁用层级选择，按专业过滤
+            // 选择具体根节点时，禁用层级选择，按根节点过滤
             if (levelSelect) {
                 levelSelect.disabled = true;
             }
             Graph.filterByCourse(courseId);
         }
-        console.log('切换到专业:', courseId);
+        console.log(`切换到${rootType}:`, courseId);
     },
 
     
     onLevelChange(level) {
         this.state.currentLevel = level;
-        // 只有在"全部专业"模式下才应用层级过滤
+        // 只有在"全部根节点"模式下才应用层级过滤
         if (this.state.currentCourse === 'all') {
             this.applyLevelFilter();
         }
@@ -2248,6 +2696,7 @@ const App = {
         Config.applyTheme(themeName);
         Config.save();
         Graph.refresh();
+        this.dispatchMetaUpdate();
         console.log('切换到主题:', themeName);
     },
 
@@ -2296,7 +2745,9 @@ const App = {
     resetSettings() {
         if (confirm('确定要重置所有设置为默认值吗？')) {
             Config.reset();
+            Config.ensureLevelSettings(this.getNodeTypes().length);
             Graph.refresh();
+            this.dispatchMetaUpdate();
             console.log('设置已重置');
         }
     },
@@ -2323,7 +2774,10 @@ const App = {
     exportGraph() {
         const chartInstance = Graph.getChartInstance();
         if (chartInstance) {
-            const courseName = this.state.currentCourse === 'all' ? '全部专业' : '专业图谱';
+            const rootType = this.getRootType();
+            const courseName = this.state.currentCourse === 'all'
+                ? `全部${rootType}`
+                : `${rootType}图谱`;
             const title = this.state.currentTitle || '专业能力图谱系统';
             Utils.exportImage(chartInstance, `${title}_${courseName}`);
         } else {

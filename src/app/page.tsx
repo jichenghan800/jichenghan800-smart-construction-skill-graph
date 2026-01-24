@@ -1,6 +1,113 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Script from "next/script";
 
+type LevelSetting = {
+  size: number;
+  visible: boolean;
+};
+
+type RootOption = {
+  id: string;
+  name: string;
+};
+
+const DEFAULT_LEVEL_COLORS = [
+  "#E74C3C",
+  "#3498DB",
+  "#2ECC71",
+  "#F39C12",
+  "#9B59B6",
+  "#1ABC9C",
+];
+
 export default function Home() {
+  const [nodeTypes, setNodeTypes] = useState<string[]>([]);
+  const [levelSettings, setLevelSettings] = useState<LevelSetting[]>([]);
+  const [rootType, setRootType] = useState<string>("专业");
+  const [rootOptions, setRootOptions] = useState<RootOption[]>([]);
+  const [levelColors, setLevelColors] = useState<string[]>(DEFAULT_LEVEL_COLORS);
+
+  useEffect(() => {
+    const syncFromApp = (detail?: {
+      nodeTypes?: string[];
+      levelSettings?: LevelSetting[];
+      rootType?: string;
+      rootOptions?: RootOption[];
+      levelColors?: string[];
+    }) => {
+      const app = (window as unknown as { graphApp?: any }).graphApp;
+      const types = detail?.nodeTypes ?? app?.getNodeTypes?.() ?? app?.meta?.nodeTypes ?? [];
+      const settings =
+        detail?.levelSettings ?? app?.getLevelSettings?.() ?? [];
+      const nextRootType = detail?.rootType ?? app?.getRootType?.() ?? "专业";
+      const options = detail?.rootOptions ?? app?.getRootOptions?.() ?? [];
+      const colors = detail?.levelColors ?? app?.getLevelColors?.() ?? DEFAULT_LEVEL_COLORS;
+      setNodeTypes(Array.isArray(types) ? types : []);
+      if (Array.isArray(settings) && settings.length) {
+        setLevelSettings(settings.map((setting: LevelSetting) => ({
+          size: Number(setting.size),
+          visible: setting.visible !== false,
+        })));
+      } else if (Array.isArray(types)) {
+        setLevelSettings(
+          types.map((_, index) => ({
+            size: app?.getLevelSize?.(index) ?? Math.max(100 - index * 15, 20),
+            visible: app?.isLevelVisible?.(index) ?? true,
+          }))
+        );
+      }
+      setRootType(nextRootType);
+      setRootOptions(Array.isArray(options) ? options : []);
+      setLevelColors(Array.isArray(colors) && colors.length ? colors : DEFAULT_LEVEL_COLORS);
+    };
+
+    syncFromApp();
+
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      syncFromApp(customEvent.detail);
+    };
+
+    window.addEventListener("graphApp:meta", handler);
+    return () => {
+      window.removeEventListener("graphApp:meta", handler);
+    };
+  }, []);
+
+  const handleSizeChange = (index: number, value: number) => {
+    setLevelSettings((prev) => {
+      const next = [...prev];
+      const current = next[index] ?? { size: value, visible: true };
+      next[index] = { ...current, size: value };
+      return next;
+    });
+    const app = (window as unknown as { graphApp?: any }).graphApp;
+    app?.updateLevelSize?.(index, value);
+  };
+
+  const handleVisibilityChange = (index: number, value: boolean) => {
+    setLevelSettings((prev) => {
+      const next = [...prev];
+      const current = next[index] ?? { size: 100, visible: value };
+      next[index] = { ...current, visible: value };
+      return next;
+    });
+    const app = (window as unknown as { graphApp?: any }).graphApp;
+    app?.updateLevelVisibility?.(index, value);
+  };
+
+  const handleColorChange = (index: number, value: string) => {
+    setLevelColors((prev) => {
+      const next = prev.length ? [...prev] : [...DEFAULT_LEVEL_COLORS];
+      const colorIndex = index % next.length;
+      next[colorIndex] = value;
+      return next;
+    });
+    const app = (window as unknown as { graphApp?: any }).graphApp;
+    app?.updateLevelColor?.(index, value);
+  };
   return (
     <>
       <Script
@@ -15,9 +122,14 @@ export default function Home() {
         </div>
         <div className="toolbar-center">
           <div className="course-selector">
-            <label htmlFor="courseSelect">选择专业：</label>
+            <label htmlFor="courseSelect">选择{rootType}：</label>
             <select id="courseSelect" defaultValue="all">
-              <option value="all">全部专业</option>
+              <option value="all">全部{rootType}</option>
+              {rootOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.name}
+                </option>
+              ))}
             </select>
           </div>
           <div className="level-selector">
@@ -100,48 +212,22 @@ export default function Home() {
           <div className="legend-panel">
             <h4>节点类型</h4>
             <div className="legend-items">
-              <div className="legend-item">
-                <span
-                  className="legend-color"
-                  style={{ background: "var(--color-major)" }}
-                />
-                <span>专业</span>
-              </div>
-              <div className="legend-item">
-                <span
-                  className="legend-color"
-                  style={{ background: "var(--color-category)" }}
-                />
-                <span>课程类别</span>
-              </div>
-              <div className="legend-item">
-                <span
-                  className="legend-color"
-                  style={{ background: "var(--color-course)" }}
-                />
-                <span>课程名称</span>
-              </div>
-              <div className="legend-item">
-                <span
-                  className="legend-color"
-                  style={{ background: "var(--color-type)" }}
-                />
-                <span>能力类型</span>
-              </div>
-              <div className="legend-item">
-                <span
-                  className="legend-color"
-                  style={{ background: "var(--color-ability)" }}
-                />
-                <span>能力</span>
-              </div>
-              <div className="legend-item">
-                <span
-                  className="legend-color"
-                  style={{ background: "var(--color-point)" }}
-                />
-                <span>能力点</span>
-              </div>
+              {nodeTypes.length === 0 ? (
+                <div className="legend-item">暂无节点类型</div>
+              ) : (
+                nodeTypes.map((typeName, index) => (
+                  <div className="legend-item" key={`${typeName}-${index}`}>
+                    <span
+                      className="legend-color"
+                      style={{
+                        background:
+                          levelColors[index % levelColors.length] || "#999999",
+                      }}
+                    />
+                    <span>{typeName}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
           <div className="stats-panel">
@@ -210,78 +296,73 @@ export default function Home() {
 
             <section className="config-section">
               <h4>节点颜色</h4>
-              <div className="color-grid">
-                <div className="config-item color-item">
-                  <label>专业</label>
-                  <input type="color" id="colorMajor" defaultValue="#E74C3C" />
+              {nodeTypes.length === 0 ? (
+                <div className="config-item">暂无节点层级</div>
+              ) : (
+                <div className="color-grid">
+                  {nodeTypes.map((typeName, index) => {
+                    const color =
+                      levelColors[index % levelColors.length] ||
+                      DEFAULT_LEVEL_COLORS[index % DEFAULT_LEVEL_COLORS.length];
+                    return (
+                      <div className="config-item color-item" key={`${typeName}-${index}`}>
+                        <label>{typeName}</label>
+                        <input
+                          type="color"
+                          value={color}
+                          onChange={(event) =>
+                            handleColorChange(index, event.target.value)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="config-item color-item">
-                  <label>课程类别</label>
-                  <input type="color" id="colorCategory" defaultValue="#3498DB" />
-                </div>
-                <div className="config-item color-item">
-                  <label>课程名称</label>
-                  <input type="color" id="colorCourse" defaultValue="#2ECC71" />
-                </div>
-                <div className="config-item color-item">
-                  <label>能力类型</label>
-                  <input type="color" id="colorType" defaultValue="#F39C12" />
-                </div>
-                <div className="config-item color-item">
-                  <label>能力</label>
-                  <input type="color" id="colorAbility" defaultValue="#9B59B6" />
-                </div>
-                <div className="config-item color-item">
-                  <label>能力点</label>
-                  <input type="color" id="colorPoint" defaultValue="#1ABC9C" />
-                </div>
-              </div>
+              )}
             </section>
 
             <section className="config-section">
               <h4>节点大小</h4>
-              <div className="config-item slider-item">
-                <label>
-                  专业 <span id="sizeMajorVal">100</span>
-                </label>
-                <input type="range" id="sizeMajor" min="40" max="150" defaultValue="100" />
-              </div>
-              <div className="config-item slider-item">
-                <label>
-                  课程类别 <span id="sizeCategoryVal">85</span>
-                </label>
-                <input
-                  type="range"
-                  id="sizeCategory"
-                  min="30"
-                  max="120"
-                  defaultValue="85"
-                />
-              </div>
-              <div className="config-item slider-item">
-                <label>
-                  课程名称 <span id="sizeCourseVal">75</span>
-                </label>
-                <input type="range" id="sizeCourse" min="30" max="110" defaultValue="75" />
-              </div>
-              <div className="config-item slider-item">
-                <label>
-                  能力类型 <span id="sizeTypeVal">70</span>
-                </label>
-                <input type="range" id="sizeType" min="25" max="100" defaultValue="70" />
-              </div>
-              <div className="config-item slider-item">
-                <label>
-                  能力 <span id="sizeAbilityVal">60</span>
-                </label>
-                <input type="range" id="sizeAbility" min="20" max="90" defaultValue="60" />
-              </div>
-              <div className="config-item slider-item">
-                <label>
-                  能力点 <span id="sizePointVal">45</span>
-                </label>
-                <input type="range" id="sizePoint" min="15" max="70" defaultValue="45" />
-              </div>
+              {nodeTypes.length === 0 ? (
+                <div className="config-item">暂无节点层级</div>
+              ) : (
+                nodeTypes.map((typeName, index) => {
+                  const setting = levelSettings[index];
+                  const size = setting?.size ?? Math.max(100 - index * 15, 20);
+                  const visible = setting?.visible ?? true;
+                  return (
+                    <div key={`${typeName}-${index}`}>
+                      <div className="config-item slider-item">
+                        <label>
+                          {typeName} 大小 <span>{size}</span>
+                        </label>
+                        <input
+                          type="range"
+                          min="20"
+                          max="150"
+                          step="1"
+                          value={size}
+                          onChange={(event) =>
+                            handleSizeChange(index, Number(event.target.value))
+                          }
+                        />
+                      </div>
+                      <div className="config-item">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={visible}
+                            onChange={(event) =>
+                              handleVisibilityChange(index, event.target.checked)
+                            }
+                          />
+                          显示 {typeName}
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </section>
 
             <section className="config-section">
