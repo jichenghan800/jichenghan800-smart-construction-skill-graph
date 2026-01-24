@@ -77,8 +77,10 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 
 ## 服务端持久化
 
-- 导入 Excel 后会自动保存到服务端文件 `data/graph_saved.json`
-- 服务端接口：`GET /api/graph` 读取保存数据（不存在则回退到 `public/data/graph_full.json`），`POST /api/graph` 保存数据
+- 本分支用于 Vercel 部署，导入 Excel 后会保存到 Vercel Blob（`graph_saved.json`）。
+- 服务端接口：`GET /api/graph` 读取 Blob（不存在则回退到 `public/data/graph_full.json`），`POST /api/graph` 写入 Blob。
+- 需要在 Vercel 项目配置环境变量 `BLOB_READ_WRITE_TOKEN`。
+- 未配置 Token 时，`/api/graph` 将返回错误。
 
 ## 数据元信息
 
