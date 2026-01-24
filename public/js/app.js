@@ -1126,6 +1126,22 @@ const Utils = {
         XLSX.writeFile(workbook, `${filename}_${this.formatDate(new Date())}.xlsx`);
     },
 
+    async exportJson(data, filename = '专业能力图谱系统') {
+        if (!data) {
+            throw new Error('暂无可导出的 JSON 数据');
+        }
+        const payload = JSON.stringify(data, null, 2);
+        const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${filename}_${this.formatDate(new Date())}.json`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+    },
+
     async exportTemplateExcel(filename = '图谱模板') {
         const XLSX = await this.loadSheetJS();
         const headers = this.getChainHeaders();
@@ -1570,6 +1586,10 @@ const Graph = {
     
     // 当前显示的数据
     currentData: null,
+
+    // 当前缩放
+    zoomScale: 1,
+    zoomRaf: null,
     
     // 布局类型
     layoutType: 'force',  // 'force' | 'circular'
@@ -1671,6 +1691,10 @@ const Graph = {
             }
         });
 
+        this.chart.on('graphRoam', (params) => {
+            this.updateZoomScale(this.getRoamZoom(params));
+        });
+
         console.log('图谱初始化完成');
     },
 
@@ -1727,7 +1751,7 @@ const Graph = {
         const visibleLinks = rawLinks.filter((link) =>
             visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)
         );
-        const nodes = this.processNodes(visibleNodes, nodeTypes);
+        const nodes = this.processNodes(visibleNodes, nodeTypes, this.zoomScale);
         const links = this.processLinks(visibleLinks);
         const categories = this.getCategories(nodeTypes);
 
@@ -1849,21 +1873,25 @@ const Graph = {
     },
 
     
-    processNodes(nodes, nodeTypes = []) {
+    processNodes(nodes, nodeTypes = [], zoomScale = 1) {
         const baseColors = this.getBaseColors();
         return nodes.map(node => {
             const category = node.category;
             const depth = this.getNodeDepth(node, nodeTypes);
             const size = Config.getLevelSize(depth);
+            const normalizedZoom = Number.isFinite(zoomScale) && zoomScale > 0 ? zoomScale : 1;
             const color = baseColors.length
                 ? baseColors[depth % baseColors.length]
                 : '#999999';
             const name = node.name ? String(node.name) : '';
-            const fontSize = Math.max(10, Math.min(Math.floor(size / 4.5), 48));
+            const baseFontSize = Math.max(10, Math.min(Math.floor(size / 4.5), 48));
+            const fontSize = baseFontSize;
             const fontWeight = 'normal';
             const lineHeight = Math.ceil(fontSize * 1.3);
             const labelWidth = Math.max(12, Math.floor(size * 0.7));
-            const maxLines = Math.max(1, Math.floor((size * 0.8) / lineHeight));
+            const baseLineHeight = Math.ceil(baseFontSize * 1.3);
+            const baseMaxLines = Math.max(1, Math.floor((size * 0.8) / baseLineHeight));
+            const maxLines = Math.max(baseMaxLines, Math.floor(baseMaxLines * normalizedZoom));
             let displayName = name;
             let lineCount = 1;
             let offsetY = 0;
@@ -1871,6 +1899,20 @@ const Graph = {
                 const chars = Array.from(name);
                 const length = chars.length;
                 const maxCharsPerLine = this.getMaxCharsPerLine(name, labelWidth, fontSize, fontWeight);
+                const hasWhitespace = /\s/.test(name);
+                const hasCjk = /[\u4e00-\u9fff]/.test(name);
+                const hasLatin = /[A-Za-z]/.test(name);
+                const avoidWordBreak = !hasWhitespace && hasLatin && !hasCjk;
+                const safeLabelWidth = Math.max(12, labelWidth - Math.ceil(fontSize * 0.1));
+                const fitsLabelWidth = (text) => {
+                    if (!text) return true;
+                    const ctx = this.getMeasureContext();
+                    if (ctx && typeof ctx.measureText === 'function') {
+                        ctx.font = this.getLabelFont(fontSize, fontWeight);
+                        return ctx.measureText(text).width <= safeLabelWidth;
+                    }
+                    return text.length <= maxCharsPerLine;
+                };
                 const finalizeLines = (lines) => {
                     if (!Array.isArray(lines) || lines.length === 0) return [];
                     if (!Number.isFinite(maxLines) || maxLines <= 0) return [];
@@ -1933,6 +1975,30 @@ const Graph = {
 
                     return trimmed;
                 };
+                const finalizeWordLines = (lines) => {
+                    if (!Array.isArray(lines) || lines.length === 0) return [];
+                    if (!Number.isFinite(maxLines) || maxLines <= 0) return [];
+                    if (lines.length <= maxLines) return lines;
+                    const trimmed = lines.slice(0, maxLines);
+                    const lastIndex = trimmed.length - 1;
+                    let last = trimmed[lastIndex] || '';
+                    const ellipsis = '…';
+                    const applyEllipsis = (value) =>
+                        value.endsWith(ellipsis) ? value : `${value}${ellipsis}`;
+                    let candidate = applyEllipsis(last);
+                    if (!fitsLabelWidth(candidate)) {
+                        const words = last.split(/\s+/).filter(Boolean);
+                        while (words.length > 1) {
+                            words.pop();
+                            candidate = applyEllipsis(words.join(' '));
+                            if (fitsLabelWidth(candidate)) {
+                                break;
+                            }
+                        }
+                    }
+                    trimmed[lastIndex] = candidate;
+                    return trimmed;
+                };
                 const buildLinesByLengths = (lengths) => {
                     let start = 0;
                     return lengths.map((len) => {
@@ -1948,50 +2014,151 @@ const Graph = {
                     }
                     return lines;
                 };
-                let lines = [];
-                if (maxLines >= 2 && (length === 4 || length === 5)) {
-                    const maxLen = length === 4 ? 2 : 3;
-                    if (maxCharsPerLine >= maxLen) {
-                        lines = buildLinesByLengths([2, length - 2]);
-                    }
-                }
-                if (maxLines >= 2 && length === 7 && lines.length === 0) {
-                    if (maxCharsPerLine >= 4) {
-                        lines = buildLinesByLengths([3, 4]);
-                    }
-                }
-                if (maxLines >= 2 && lines.length === 0 && maxCharsPerLine > 0 && length > maxCharsPerLine) {
-                    const estimatedLines = Math.ceil(length / maxCharsPerLine);
-                    if (estimatedLines === 2) {
-                        const lower = Math.ceil(length / 2);
-                        const upper = length - lower;
-                        const maxLen = Math.max(lower, upper);
-                        if (maxCharsPerLine >= maxLen) {
-                            lines = buildLinesByLengths([upper, lower]);
-                        } else {
-                            lines = buildChunkLines(maxCharsPerLine);
+                const wordLines = (() => {
+                    if (!hasWhitespace) return [];
+                    const words = name.trim().split(/\s+/).filter(Boolean);
+                    if (words.length < 2) return [];
+                    const lines = [];
+                    let current = '';
+                    words.forEach((word) => {
+                        const candidate = current ? `${current} ${word}` : word;
+                        if (fitsLabelWidth(candidate)) {
+                            current = candidate;
+                            return;
                         }
-                    } else if (estimatedLines === 3 && maxLines >= 3) {
-                        const base = Math.floor(length / 3);
-                        const remainder = length % 3;
-                        const middle = base + remainder;
-                        const left = base;
-                        const right = base;
-                        const maxLen = Math.max(left, middle, right);
-                        if (maxCharsPerLine >= maxLen) {
-                            lines = buildLinesByLengths([left, middle, right]);
-                        } else {
-                            lines = buildChunkLines(maxCharsPerLine);
+                        if (current) {
+                            lines.push(current);
+                            current = word;
+                            return;
                         }
-                    } else {
-                        lines = buildChunkLines(maxCharsPerLine);
+                        lines.push(word);
+                    });
+                    if (current) {
+                        lines.push(current);
                     }
-                }
-                if (lines.length) {
-                    const finalLines = finalizeLines(lines);
+                    return lines;
+                })();
+                const mixedLines = (() => {
+                    if (hasWhitespace || !hasLatin || !hasCjk) return [];
+                    const tokens = [];
+                    let buffer = '';
+                    let bufferType = '';
+                    const flushBuffer = () => {
+                        if (!buffer) return;
+                        tokens.push(buffer);
+                        buffer = '';
+                        bufferType = '';
+                    };
+                    chars.forEach((ch) => {
+                        if (/[A-Za-z0-9]/.test(ch)) {
+                            if (bufferType === 'latin') {
+                                buffer += ch;
+                            } else {
+                                flushBuffer();
+                                buffer = ch;
+                                bufferType = 'latin';
+                            }
+                            return;
+                        }
+                        if (/[\u4e00-\u9fff]/.test(ch)) {
+                            flushBuffer();
+                            tokens.push(ch);
+                            return;
+                        }
+                        if (/\s/.test(ch)) {
+                            flushBuffer();
+                            tokens.push(' ');
+                            return;
+                        }
+                        flushBuffer();
+                        tokens.push(ch);
+                    });
+                    flushBuffer();
+
+                    const lines = [];
+                    let current = '';
+                    tokens.forEach((token) => {
+                        if (token === ' ') {
+                            if (current && !current.endsWith(' ')) {
+                                current += ' ';
+                            }
+                            return;
+                        }
+                        const candidate = current ? `${current}${token}` : token;
+                        if (current && !fitsLabelWidth(candidate)) {
+                            lines.push(current);
+                            current = token;
+                            return;
+                        }
+                        if (!current && !fitsLabelWidth(candidate)) {
+                            current = candidate;
+                            return;
+                        }
+                        current = candidate;
+                    });
+                    if (current) {
+                        lines.push(current);
+                    }
+                    return lines;
+                })();
+                if (!avoidWordBreak && wordLines.length) {
+                    const finalLines = finalizeWordLines(wordLines);
                     if (finalLines.length) {
                         displayName = finalLines.join('\n');
                         lineCount = finalLines.length;
+                    }
+                } else if (!avoidWordBreak && mixedLines.length) {
+                    const finalLines = finalizeWordLines(mixedLines);
+                    if (finalLines.length) {
+                        displayName = finalLines.join('\n');
+                        lineCount = finalLines.length;
+                    }
+                } else if (!avoidWordBreak) {
+                    let lines = [];
+                    if (maxLines >= 2 && (length === 4 || length === 5)) {
+                        const maxLen = length === 4 ? 2 : 3;
+                        if (maxCharsPerLine >= maxLen) {
+                            lines = buildLinesByLengths([2, length - 2]);
+                        }
+                    }
+                    if (maxLines >= 2 && length === 7 && lines.length === 0) {
+                        if (maxCharsPerLine >= 4) {
+                            lines = buildLinesByLengths([3, 4]);
+                        }
+                    }
+                    if (maxLines >= 2 && lines.length === 0 && maxCharsPerLine > 0 && length > maxCharsPerLine) {
+                        const estimatedLines = Math.ceil(length / maxCharsPerLine);
+                        if (estimatedLines === 2) {
+                            const lower = Math.ceil(length / 2);
+                            const upper = length - lower;
+                            const maxLen = Math.max(lower, upper);
+                            if (maxCharsPerLine >= maxLen) {
+                                lines = buildLinesByLengths([upper, lower]);
+                            } else {
+                                lines = buildChunkLines(maxCharsPerLine);
+                            }
+                        } else if (estimatedLines === 3 && maxLines >= 3) {
+                            const base = Math.floor(length / 3);
+                            const remainder = length % 3;
+                            const middle = base + remainder;
+                            const left = base;
+                            const right = base;
+                            const maxLen = Math.max(left, middle, right);
+                            if (maxCharsPerLine >= maxLen) {
+                                lines = buildLinesByLengths([left, middle, right]);
+                            } else {
+                                lines = buildChunkLines(maxCharsPerLine);
+                            }
+                        } else {
+                            lines = buildChunkLines(maxCharsPerLine);
+                        }
+                    }
+                    if (lines.length) {
+                        const finalLines = finalizeLines(lines);
+                        if (finalLines.length) {
+                            displayName = finalLines.join('\n');
+                            lineCount = finalLines.length;
+                        }
                     }
                 }
             } else if (name.includes('\n')) {
@@ -2000,6 +2167,13 @@ const Graph = {
             if (lineCount > 1) {
                 offsetY = -Math.round(lineHeight * 0.15);
             }
+
+            const hasWhitespace = /\s/.test(name);
+            const hasCjk = /[\u4e00-\u9fff]/.test(name);
+            const hasLatin = /[A-Za-z]/.test(name);
+            const avoidWordBreak = !hasWhitespace && hasLatin && !hasCjk;
+            const labelLineClamp = avoidWordBreak ? 1 : maxLines;
+            const labelOverflow = hasLatin ? 'none' : 'break';
 
             return {
                 id: node.id,
@@ -2023,10 +2197,10 @@ const Graph = {
                     fontSize,
                     lineHeight,
                     width: labelWidth,
-                    height: lineHeight * maxLines,
-                    overflow: 'break',
+                    height: lineHeight * labelLineClamp,
+                    overflow: labelOverflow,
                     lineOverflow: 'truncate',
-                    lineClamp: maxLines,
+                    lineClamp: labelLineClamp,
                     fontWeight,
                     offset: [0, offsetY]
                 },
@@ -2107,6 +2281,73 @@ const Graph = {
     
     refresh() {
         this.render();
+    },
+
+    getRoamZoom(params) {
+        if (params && typeof params.zoom === 'number' && params.zoom > 0) {
+            return this.zoomScale * params.zoom;
+        }
+        if (this.chart) {
+            const option = this.chart.getOption();
+            const series = option && option.series && option.series[0] ? option.series[0] : null;
+            if (series && Number.isFinite(series.zoom) && series.zoom > 0) {
+                return series.zoom;
+            }
+        }
+        return this.zoomScale || 1;
+    },
+
+    updateZoomScale(nextZoom) {
+        if (!Number.isFinite(nextZoom) || nextZoom <= 0) {
+            return;
+        }
+        const clamped = Math.max(0.3, Math.min(nextZoom, 3));
+        if (Math.abs(clamped - this.zoomScale) < 0.01) {
+            return;
+        }
+        this.zoomScale = clamped;
+        this.scheduleLabelUpdate();
+    },
+
+    scheduleLabelUpdate() {
+        if (this.zoomRaf) {
+            return;
+        }
+        this.zoomRaf = requestAnimationFrame(() => {
+            this.zoomRaf = null;
+            this.updateLabelLayout();
+        });
+    },
+
+    updateLabelLayout() {
+        if (!this.chart || !this.currentData) {
+            return;
+        }
+        const nodeTypes = this.currentData && this.currentData.meta
+            ? this.currentData.meta.nodeTypes
+            : [];
+        const graphData = this.currentData.graph || this.currentData;
+        const rawNodes = Array.isArray(graphData.nodes) ? graphData.nodes : [];
+        const rawLinks = Array.isArray(graphData.links) ? graphData.links : [];
+        const visibleNodes = rawNodes.filter((node) =>
+            Config.isLevelVisible(this.getNodeDepth(node, nodeTypes))
+        );
+        const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+        const visibleLinks = rawLinks.filter((link) =>
+            visibleNodeIds.has(link.source) && visibleNodeIds.has(link.target)
+        );
+        const nodes = this.processNodes(visibleNodes, nodeTypes, this.zoomScale);
+        const links = this.processLinks(visibleLinks);
+
+        this.chart.setOption(
+            {
+                series: [{
+                    data: nodes,
+                    links
+                }]
+            },
+            false
+        );
     },
 
     
@@ -2471,7 +2712,7 @@ const App = {
             excelFileInput.addEventListener('change', (e) => {
                 const file = e.target.files && e.target.files[0];
                 if (file) {
-                    this.importExcel(file);
+                    this.importFile(file);
                 }
                 e.target.value = '';
             });
@@ -2829,6 +3070,30 @@ const App = {
         return true;
     },
 
+    async importFile(file) {
+        if (!file) return;
+        const fileName = (file.name || '').trim().toLowerCase();
+        const isJsonName = fileName.endsWith('.json');
+        const isJsonType = file.type ? file.type.includes('json') : false;
+        const isExcelName = fileName.endsWith('.xlsx') || fileName.endsWith('.xls');
+        const excelTypes = [
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-excel'
+        ];
+        const isExcelType = file.type ? excelTypes.includes(file.type) : false;
+
+        if (isJsonName || isJsonType) {
+            await this.importJson(file);
+            return;
+        }
+        if (isExcelName || isExcelType) {
+            await this.importExcel(file);
+            return;
+        }
+
+        alert('请上传 .xlsx、.xls 或 .json 文件');
+    },
+
     async importExcel(file) {
         if (!file) return;
         const fileName = (file.name || '').trim().toLowerCase();
@@ -2873,9 +3138,97 @@ const App = {
         }
     },
 
+    async importJson(file) {
+        if (!file) return;
+        const currentData = Graph.rawData || Graph.currentData;
+        if (currentData) {
+            Utils.saveBackup(currentData);
+        }
+
+        Utils.toggleLoading(true);
+        try {
+            const raw = await file.text();
+            const data = JSON.parse(raw);
+            const graphData = this.normalizeImportedJson(data);
+            if (!graphData) {
+                throw new Error('JSON 格式不正确：需要包含 nodes/links 或 nodes/edges');
+            }
+            this.applyGraphData(graphData);
+            this.state.dataSourceType = 'json';
+            this.state.excelRows = [];
+            try {
+                await Utils.saveGraphToServer(graphData);
+            } catch (saveError) {
+                console.warn('服务端保存失败:', saveError);
+                alert('导入完成，但服务端保存失败，请检查服务是否可用');
+            }
+            Utils.toggleLoading(false);
+        } catch (error) {
+            Utils.toggleLoading(false);
+            this.showError(`导入失败: ${error.message || error}`);
+        }
+    },
+
+    normalizeImportedJson(data) {
+        if (!data || typeof data !== 'object') {
+            return null;
+        }
+        const normalizeNodes = (nodes) => nodes.map((node) => {
+            if (!node || typeof node !== 'object') {
+                return node;
+            }
+            const name = node.name !== undefined ? node.name : node.label;
+            if (name === undefined) {
+                return { ...node };
+            }
+            return { ...node, name: String(name) };
+        });
+        const normalizeLinks = (links) => links.map((link) => {
+            if (!link || typeof link !== 'object') {
+                return link;
+            }
+            const name = link.name !== undefined ? link.name : link.label;
+            if (name === undefined) {
+                return { ...link };
+            }
+            return { ...link, name: String(name) };
+        });
+        if (data.graph && typeof data.graph === 'object') {
+            const nodes = Array.isArray(data.graph.nodes) ? data.graph.nodes : null;
+            if (!nodes) {
+                return null;
+            }
+            const linksSource = Array.isArray(data.graph.links)
+                ? data.graph.links
+                : (Array.isArray(data.graph.edges) ? data.graph.edges : []);
+            return {
+                ...data,
+                graph: {
+                    ...data.graph,
+                    nodes: normalizeNodes(nodes),
+                    links: normalizeLinks(linksSource)
+                }
+            };
+        }
+        if (Array.isArray(data.nodes)) {
+            const linksSource = Array.isArray(data.links)
+                ? data.links
+                : (Array.isArray(data.edges) ? data.edges : []);
+            return {
+                ...data,
+                graph: {
+                    nodes: normalizeNodes(data.nodes),
+                    links: normalizeLinks(linksSource)
+                }
+            };
+        }
+        return null;
+    },
+
     async exportExcel() {
         if (this.state.dataSourceType !== 'excel') {
-            alert('当前数据来源为 JSON，请直接导出 JSON');
+            alert('当前数据来源为 JSON，将导出 JSON');
+            await this.exportJson();
             return;
         }
         if (!this.state.excelRows || this.state.excelRows.length === 0) {
@@ -2884,6 +3237,19 @@ const App = {
         }
         try {
             await Utils.exportExcel(this.state.excelRows, '专业能力图谱系统');
+        } catch (error) {
+            this.showError(`导出失败: ${error.message || error}`);
+        }
+    },
+
+    async exportJson() {
+        const currentData = Graph.rawData || Graph.currentData;
+        if (!currentData) {
+            alert('暂无可导出的 JSON 数据');
+            return;
+        }
+        try {
+            await Utils.exportJson(currentData, '专业能力图谱系统');
         } catch (error) {
             this.showError(`导出失败: ${error.message || error}`);
         }

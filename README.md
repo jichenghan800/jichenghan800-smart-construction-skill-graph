@@ -45,7 +45,7 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 - `src/app/globals.css`：样式与主题变量
 - `public/js/app.js`：图谱逻辑（配置、数据加载、渲染、交互、元信息同步）
 - `public/data/graph_full.json`：图谱数据
-- `src/app/api/graph/route.ts`：服务端持久化接口（读写本地文件）
+- `src/app/api/graph/route.ts`：服务端持久化接口（优先 Vercel Blob，未配置时写本地文件）
 
 ## 配置说明
 
@@ -65,11 +65,12 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 
 ## Excel 导入/导出
 
+- 支持导入 Excel 或 JSON（JSON 需包含 `nodes/links`、`nodes/edges`，或 `graph.nodes/graph.links`）
 - 单个 Excel 文件仅 1 个工作表，表头固定为：
   `专业 | 关系(专业-课程类别) | 课程类别 | 关系(课程类别-课程名称) | 课程名称 | 关系(课程名称-能力类型) | 能力类型 | 关系(能力类型-能力) | 能力 | 关系(能力-能力点) | 能力点`
 - 仅节点列为必填，关系列可为空；缺失节点信息的行会被跳过并提示
 - 节点 ID 由系统自动生成（稳定规则：节点类型 + 名称 + 父节点），无需在 Excel 中填写
-- 导出 Excel 仅支持从 Excel 导入的数据；原始为 JSON 时提示直接导出 JSON
+- 导出 Excel 仅支持从 Excel 导入的数据；当前为 JSON 时会导出 JSON
 - 模板中必填字段会用颜色标记（若 Excel 不显示颜色，以列名为准）
 - 每次导入前会自动备份当前图谱数据，可通过“恢复备份”一键回滚
 - 运维密码配置在 `public/config/ops.json`，修改 `password` 即可生效
@@ -77,10 +78,9 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 
 ## 服务端持久化
 
-- 本分支用于 Vercel 部署，导入 Excel 后会保存到 Vercel Blob（`graph_saved.json`）。
-- 服务端接口：`GET /api/graph` 读取 Blob（不存在则回退到 `public/data/graph_full.json`），`POST /api/graph` 写入 Blob。
-- 需要在 Vercel 项目配置环境变量 `BLOB_READ_WRITE_TOKEN`。
-- 未配置 Token 时，`/api/graph` 将返回错误。
+- 默认保存到本地文件 `data/graph_saved.json`。
+- 配置环境变量 `BLOB_READ_WRITE_TOKEN` 后，改为保存到 Vercel Blob（`graph_saved.json`）。
+- 服务端接口：`GET /api/graph` 优先读 Blob（不存在则回退到 `public/data/graph_full.json`），未配置 Token 时读本地文件。
 
 ## 数据元信息
 

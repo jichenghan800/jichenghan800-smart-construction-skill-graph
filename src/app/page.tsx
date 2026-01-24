@@ -167,7 +167,10 @@ export default function Home() {
                 <span className="icon">🧾</span> 下载模板
               </button>
               <button id="btnImportExcel" className="btn btn-primary" type="button">
-                <span className="icon">📥</span> 导入Excel
+                <span className="icon">📥</span> 导入Excel/JSON
+              </button>
+              <button id="btnExportExcel" className="btn btn-success" type="button">
+                <span className="icon">📤</span> 导出数据
               </button>
               <button id="btnRestoreBackup" className="btn btn-secondary" type="button">
                 <span className="icon">🕘</span> 恢复备份
@@ -186,7 +189,7 @@ export default function Home() {
         id="excelFileInput"
         className="visually-hidden"
         type="file"
-        accept=".xlsx,.xls"
+        accept=".xlsx,.xls,.json,application/json"
       />
 
       <main className="main-container">
