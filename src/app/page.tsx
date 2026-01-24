@@ -169,9 +169,6 @@ export default function Home() {
               <button id="btnImportExcel" className="btn btn-primary" type="button">
                 <span className="icon">📥</span> 导入Excel
               </button>
-              <button id="btnExportExcel" className="btn btn-success" type="button">
-                <span className="icon">📤</span> 导出Excel
-              </button>
               <button id="btnRestoreBackup" className="btn btn-secondary" type="button">
                 <span className="icon">🕘</span> 恢复备份
               </button>

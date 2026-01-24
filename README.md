@@ -1,14 +1,14 @@
 # 专业能力图谱系统（复刻版）
 
-一个基于 Next.js + ECharts 的知识图谱可视化项目，复刻自在线示例站点。提供专业筛选、层级展开、主题切换、图谱布局切换、图谱导出与参数配置等功能。
+一个基于 Next.js + ECharts 的知识图谱可视化项目，复刻自在线示例站点。提供根节点筛选、层级展开、主题切换、图谱布局切换、图谱导出与参数配置等功能。
 
 ## 功能特性
 
 - 图谱展示：基于 ECharts Graph 的力导布局与环形布局
-- 专业筛选：按专业过滤相关能力链路
-- 层级控制：按层级展开（默认 3 层）
+- 根节点筛选：根据数据元信息动态生成类型与选项（不再限定“专业”）
+- 层级控制：按层级展开（默认 3 层），支持按层级设置节点大小与显隐
 - 主题切换：经典/海洋/森林/日落/科技
-- 图谱设置：节点颜色、大小、线条参数、布局参数
+- 图谱设置：按层级节点颜色/大小/显隐，线条参数、布局参数
 - 统计信息：节点/关系数量实时更新
 - 导出图片：一键导出 PNG
 - Excel 导入/导出：单 sheet 链式结构
@@ -43,21 +43,25 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 
 - `src/app/page.tsx`：页面结构（工具栏、图谱区、侧边设置面板、弹窗）
 - `src/app/globals.css`：样式与主题变量
-- `public/js/app.js`：图谱逻辑（配置、数据加载、渲染、交互）
+- `public/js/app.js`：图谱逻辑（配置、数据加载、渲染、交互、元信息同步）
 - `public/data/graph_full.json`：图谱数据
+- `src/app/api/graph/route.ts`：服务端持久化接口（读写本地文件）
 
 ## 配置说明
 
 图谱配置集中在 `public/js/app.js` 的 `Config` 对象中：
 
 - `defaults.colors`：节点颜色
-- `defaults.sizes`：节点大小
+- `defaults.levelSettings`：节点大小与显隐（`{ size, visible }`，按层级）
 - `defaults.display`：显示设置与默认层级
 - `defaults.line`：线条宽度/透明度
 - `defaults.layout`：力导布局参数
 - `themes`：主题色与背景
+- `LEVEL_SIZE_MAX/STEP/MIN`：层级默认大小规则
+- `BASE_COLOR_ORDER`：层级颜色映射顺序
 
 配置会存储在浏览器 `localStorage` 的 `graph_config_v3`。
+若检测到旧版配置（如 `sizes` 字段）会自动清理并回退到默认配置。
 
 ## Excel 导入/导出
 
@@ -75,6 +79,11 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 
 - 导入 Excel 后会自动保存到服务端文件 `data/graph_saved.json`
 - 服务端接口：`GET /api/graph` 读取保存数据（不存在则回退到 `public/data/graph_full.json`），`POST /api/graph` 保存数据
+
+## 数据元信息
+
+- 图谱数据可包含 `meta` 字段，例如 `meta.title`（标题）与 `meta.nodeTypes`（节点层级/类型列表）。
+- 页面中的根节点筛选、图例、节点颜色/大小/显隐会根据 `meta.nodeTypes` 动态生成。
 
 ## 性能说明
 
