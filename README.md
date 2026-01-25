@@ -73,7 +73,7 @@ HOSTNAME=0.0.0.0 PORT=7000 npm run start
 - 导出 Excel 仅支持从 Excel 导入的数据；当前为 JSON 时会导出 JSON
 - 模板中必填字段会用颜色标记（若 Excel 不显示颜色，以列名为准）
 - 每次导入前会自动备份当前图谱数据，可通过“恢复备份”一键回滚
-- 运维密码配置在 `public/config/ops.json`，修改 `password` 即可生效
+- 运维密码配置在 `public/config/ops.json`，修改 `password` 即可生效；部署时可设置 `OPS_PASSWORD`，构建阶段会自动覆盖该文件
 - 可选：在 Excel 第二个工作表中填写自定义标题，工作表名建议 `标题`，任意单元格的第一个非空值将作为页面左上角标题
 
 ## 服务端持久化

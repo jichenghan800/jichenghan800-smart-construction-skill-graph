@@ -2296,6 +2296,23 @@ const Graph = {
         this.render();
     },
 
+    resetView() {
+        if (!this.chart) {
+            return;
+        }
+        this.zoomScale = 1;
+        this.chart.setOption(
+            {
+                series: [{
+                    center: null,
+                    zoom: 1
+                }]
+            },
+            false
+        );
+        this.updateLabelLayout();
+    },
+
     getRoamZoom(params) {
         if (params && typeof params.zoom === 'number' && params.zoom > 0) {
             return this.zoomScale * params.zoom;
@@ -2710,6 +2727,12 @@ const App = {
         if (btnExport) {
             btnExport.addEventListener('click', () => {
                 this.exportGraph();
+            });
+        }
+        const btnResetView = document.getElementById('btnResetView');
+        if (btnResetView) {
+            btnResetView.addEventListener('click', () => {
+                Graph.resetView();
             });
         }
 
