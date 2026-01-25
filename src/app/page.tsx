@@ -180,9 +180,6 @@ export default function Home() {
           <button id="btnExport" className="btn btn-success" type="button">
             <span className="icon">📷</span> 导出图片
           </button>
-          <button id="btnResetView" className="btn btn-secondary btn-sm" type="button">
-            <span className="icon">🎯</span> 归位
-          </button>
           <button id="btnTogglePanel" className="btn btn-secondary" type="button">
             <span className="icon">⚙️</span> 设置
           </button>
@@ -234,6 +231,9 @@ export default function Home() {
             </div>
           </div>
           <div className="stats-panel">
+            <button id="btnResetView" className="btn btn-secondary btn-sm" type="button">
+              <span className="icon">🎯</span> 归位
+            </button>
             <span id="statsNodes">节点数: 0</span>
             <span id="statsLinks">关系数: 0</span>
           </div>
