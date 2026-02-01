@@ -2924,29 +2924,15 @@ const App = {
         this.state.currentCourse = courseId;
         const levelSelect = document.getElementById('levelSelect');
         
-        if (courseId === 'all') {
-            // 全部根节点类型时，启用层级选择，按层级过滤
-            if (levelSelect) {
-                levelSelect.disabled = false;
-            }
-            this.applyLevelFilter();
-        } else {
-            // 选择具体根节点时，禁用层级选择，按根节点过滤
-            if (levelSelect) {
-                levelSelect.disabled = true;
-            }
-            Graph.filterByCourse(courseId);
-        }
+        // 课程与层级联动过滤
+        this.applyLevelFilter();
         console.log(`切换到${rootType}:`, courseId);
     },
 
     
     onLevelChange(level) {
         this.state.currentLevel = level;
-        // 只有在"全部根节点"模式下才应用层级过滤
-        if (this.state.currentCourse === 'all') {
-            this.applyLevelFilter();
-        }
+        this.applyLevelFilter();
         console.log('切换到层级:', level);
     },
 
@@ -2956,12 +2942,12 @@ const App = {
         
         Utils.toggleLoading(true);
         setTimeout(() => {
-            let filteredData;
-            if (this.state.currentLevel === 0) {
-                // 0表示显示全部
-                filteredData = Graph.rawData;
-            } else {
-                filteredData = Utils.filterByLevel(Graph.rawData, this.state.currentLevel);
+            let filteredData = Graph.rawData;
+            if (this.state.currentCourse !== 'all') {
+                filteredData = Utils.filterByCourse(filteredData, this.state.currentCourse);
+            }
+            if (this.state.currentLevel !== 0) {
+                filteredData = Utils.filterByLevel(filteredData, this.state.currentLevel);
             }
             Graph.render(filteredData);
             Utils.toggleLoading(false);
